@@ -484,15 +484,70 @@ function PhotoGuideContent() {
           </div>
         </div>
 
-        {/* Indicador de subidas en cola */}
-        {pendingUploads.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(245, 158, 11, 0.15)", border: "1px solid #f59e0b", padding: "4px 10px", borderRadius: "20px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#f59e0b" }} />
-            <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#f59e0b" }}>
-              {pendingUploads.length} en cola
-            </span>
-          </div>
-        )}
+        {/* Acciones de Descarga y Estado */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          {/* Botón Descargar Fotos Antala */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!ctoId) return;
+              window.open(`/api/admin/evidencia/download-cto?ctoId=${ctoId}&type=antala`, "_blank");
+            }}
+            style={{
+              background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              padding: "7px 12px",
+              fontSize: "0.78rem",
+              fontWeight: 800,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+              boxShadow: "0 2px 6px rgba(139, 92, 246, 0.3)"
+            }}
+            title="Descargar fotos de Entorno, Abierta, Etiquetado, Cableado, Potencia y Coordenadas"
+          >
+            <span>📦</span> Antala (.zip)
+          </button>
+
+          {/* Botón Descargar Otras Fotos */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!ctoId) return;
+              window.open(`/api/admin/evidencia/download-cto?ctoId=${ctoId}&type=otros`, "_blank");
+            }}
+            style={{
+              background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              padding: "7px 12px",
+              fontSize: "0.78rem",
+              fontWeight: 800,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+              boxShadow: "0 2px 6px rgba(5, 150, 105, 0.3)"
+            }}
+            title="Descargar únicamente fotos complementarias de la sección 'Otras imágenes'"
+          >
+            <span>📁</span> Otras fotos (.zip)
+          </button>
+
+          {/* Indicador de subidas en cola */}
+          {pendingUploads.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(245, 158, 11, 0.15)", border: "1px solid #f59e0b", padding: "4px 10px", borderRadius: "20px" }}>
+              <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#f59e0b" }} />
+              <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#f59e0b" }}>
+                {pendingUploads.length} en cola
+              </span>
+            </div>
+          )}
+        </div>
       </header>
 
       {/* Contenido Principal */}

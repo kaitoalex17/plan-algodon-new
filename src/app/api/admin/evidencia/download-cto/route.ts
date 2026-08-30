@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const ctoId = searchParams.get("ctoId");
+    const downloadType = searchParams.get("type"); // "antala" | "otros" | null
 
     if (!ctoId) {
       return NextResponse.json({ error: "ID de CTO no proporcionado" }, { status: 400 });
@@ -32,6 +33,45 @@ export async function GET(req: NextRequest) {
 
     if (!cto.images || cto.images.length === 0) {
       return NextResponse.json({ error: "Esta CTO no tiene imágenes asociadas" }, { status: 400 });
+    }
+
+    // Filtrado según downloadType si se requiere
+    let targetImages = cto.images;
+    if (downloadType === "antala") {
+      targetImages = cto.images.filter(img => {
+        const urlLower = (img.url || "").toLowerCase();
+        return urlLower.includes("_entorno") ||
+               urlLower.includes("_cto_abierta") ||
+               urlLower.includes("_abierta") ||
+               urlLower.includes("_etiquetado_cto") ||
+               urlLower.includes("_etiquetado_cableado") ||
+               urlLower.includes("_cableado") ||
+               urlLower.includes("_potencia") ||
+               urlLower.includes("_mapa_coordenadas");
+      });
+    } else if (downloadType === "otros") {
+      targetImages = cto.images.filter(img => {
+        const urlLower = (img.url || "").toLowerCase();
+        const isAntala = urlLower.includes("_entorno") ||
+                         urlLower.includes("_cto_abierta") ||
+                         urlLower.includes("_abierta") ||
+                         urlLower.includes("_etiquetado_cto") ||
+                         urlLower.includes("_etiquetado_cableado") ||
+                         urlLower.includes("_cableado") ||
+                         urlLower.includes("_potencia") ||
+                         urlLower.includes("_mapa_coordenadas");
+        return !isAntala;
+      });
+    }
+
+    if (targetImages.length === 0) {
+      return NextResponse.json({ 
+        error: downloadType === "antala" 
+          ? "No se encontraron fotos de la categoría Antala para esta CTO" 
+          : downloadType === "otros" 
+            ? "No hay fotos adicionales / 'Otras fotos' para esta CTO" 
+            : "No hay imágenes disponibles" 
+      }, { status: 404 });
     }
 
     const zip = new JSZip();
@@ -56,7 +96,7 @@ export async function GET(req: NextRequest) {
       return null;
     }
 
-    for (const image of cto.images) {
+    for (const image of targetImages) {
       const filename = image.url.split("/").pop();
       if (!filename) continue;
 
@@ -75,11 +115,12 @@ export async function GET(req: NextRequest) {
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
 
     const safeNum = cto.num.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const zipPrefix = downloadType === "antala" ? "antala" : downloadType === "otros" ? "otras_fotos" : "evidencias";
     const response = new NextResponse(zipBuffer, {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename=evidencias_cto_${safeNum}.zip`
+        "Content-Disposition": `attachment; filename=${zipPrefix}_cto_${safeNum}.zip`
       }
     });
 
