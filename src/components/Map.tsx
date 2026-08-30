@@ -544,10 +544,43 @@ export default function Map({
       {/* Controles del Mapa Agrupados a la Izquierda en Pila Vertical */}
       <div style={{ position: "absolute", top: "16px", left: "16px", zIndex: 1000, display: "flex", flexDirection: "column", gap: "10px" }}>
         
-        {/* Botón GPS Tracking (🛰️) */}
+        {/* Botón Geolocalización Directa / Ubicarme (📍) */}
+        <button 
+          onClick={() => {
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+                  setUserLocation(loc);
+                  if (mapRef.current) {
+                    mapRef.current.flyTo([loc.lat, loc.lng], 18, { animate: true, duration: 1.5 });
+                  }
+                },
+                (err) => alert("No se pudo obtener la posición GPS. Asegúrate de dar permisos de ubicación.")
+              );
+            } else {
+              alert("Tu navegador no soporta geolocalización.");
+            }
+          }}
+          title="Geolocalizarme ahora en el mapa"
+          style={{
+            width: "44px", height: "44px", borderRadius: "50%", background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+            border: "1.5px solid #38bdf8", boxShadow: "0 4px 12px rgba(2,132,199,0.35)",
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+            color: "white", transition: "all 0.2s"
+          }}
+        >
+          {/* Icono Pin GPS */}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
+        </button>
+
+        {/* Botón GPS Tracking Continuo (🛰️) */}
         <button 
           onClick={() => setIsTracking(!isTracking)}
-          title={isTracking ? "Desactivar GPS" : "Activar GPS"}
+          title={isTracking ? "Desactivar GPS continuo" : "Activar GPS continuo"}
           style={{
             width: "44px", height: "44px", borderRadius: "50%", background: isTracking ? "var(--primary-color)" : "white",
             border: "1.5px solid #cbd5e1", boxShadow: "0 4px 12px rgba(0,0,0,0.15)",

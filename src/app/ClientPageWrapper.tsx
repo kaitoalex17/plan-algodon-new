@@ -237,6 +237,41 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     }
   }, [fetchFilterOptions, initialMapState]);
 
+  // Recarga silenciosa de CTOs para el mapa sin recargar la página
+  const reloadCtosSilently = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ctos/all");
+      if (res.ok) {
+        const freshCtos = await res.json();
+        setCtos(freshCtos);
+      }
+    } catch (e) {
+      console.error("Error al refrescar CTOs silenciosamente:", e);
+    }
+  }, []);
+
+  // Monitor en tiempo real (Websocket / SSE / Polling ultraligero de señales de sincronización)
+  const lastSyncTimestampRef = useRef<number>(Date.now());
+  useEffect(() => {
+    const checkRealtimeSync = async () => {
+      try {
+        const res = await fetch("/api/realtime");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.lastUpdate && data.lastUpdate > lastSyncTimestampRef.current) {
+            lastSyncTimestampRef.current = data.lastUpdate;
+            reloadCtosSilently();
+          }
+        }
+      } catch (e) {
+        // Silencioso
+      }
+    };
+
+    const interval = setInterval(checkRealtimeSync, 4000);
+    return () => clearInterval(interval);
+  }, [reloadCtosSilently]);
+
   // Escuchar evento de instalación de la PWA
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -557,6 +592,46 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 <circle cx="12" cy="7" r="4" />
               </svg>
             </button>
+            {/* Botón Admin Exclusivo: Sincronizar Mapa Global a Todos (📡) */}
+            {isAdmin && (
+              <button 
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/realtime", { method: "POST" });
+                    const data = await res.json();
+                    if (res.ok) {
+                      reloadCtosSilently();
+                      alert("📡 Señal de actualización emitida: El mapa se ha actualizado y se sincronizará automáticamente en todos los dispositivos de técnicos y usuarios.");
+                    } else {
+                      alert(data.error || "No se pudo emitir la sincronización.");
+                    }
+                  } catch (e) {
+                    alert("Error de conexión al sincronizar.");
+                  }
+                }} 
+                className="btn" 
+                title="Emitir actualización forzosa del mapa a todos los usuarios conectados"
+                style={{ 
+                  padding: "6px 9px", 
+                  background: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)", 
+                  color: "#ffffff", 
+                  minHeight: "34px", 
+                  display: "flex", 
+                  alignItems: "center", 
+                  justifyContent: "center", 
+                  gap: "4px",
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
+                  border: "1px solid #a78bfa", 
+                  borderRadius: "6px", 
+                  cursor: "pointer",
+                  boxShadow: "0 2px 6px rgba(139, 92, 246, 0.3)"
+                }}
+              >
+                <span>📡</span> <span className="hide-mobile">Sincronizar Todos</span>
+              </button>
+            )}
+
             {isAdmin && (
               <button 
                 onClick={() => window.location.href = "/admin"} 
