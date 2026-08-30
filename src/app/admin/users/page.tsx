@@ -183,7 +183,43 @@ export default function UsersPage() {
                           {user._count?.assignedCTOs ?? 0}
                         </td>
                         <td style={{ padding: "1rem", textAlign: "center" }}>
-                          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
+                          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center", alignItems: "center" }}>
+                            {/* Botón Forzar Cierre de Sesión */}
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (confirm(`¿Forzar el cierre de sesión de ${user.name || user.email}? El usuario será desconectado inmediatamente del sistema.`)) {
+                                  try {
+                                    const res = await fetch(`/api/users/${user.id}/force-logout`, { method: "POST" });
+                                    const data = await res.json();
+                                    if (res.ok) {
+                                      alert(`✓ Sesión cerrada con éxito para ${user.name || user.email}`);
+                                    } else {
+                                      alert(data.error || "No se pudo cerrar la sesión");
+                                    }
+                                  } catch (e) {
+                                    alert("Error al conectar con el servidor.");
+                                  }
+                                }
+                              }}
+                              title="Expulsar y cerrar sesión activa inmediatamente"
+                              style={{ 
+                                padding: "6px 10px", 
+                                border: "1px solid #fecaca", 
+                                borderRadius: "6px", 
+                                background: "#fff1f2", 
+                                cursor: "pointer", 
+                                fontWeight: 700, 
+                                fontSize: "0.8rem", 
+                                color: "#b91c1c",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px"
+                              }}
+                            >
+                              <span>🚫</span> Expulsar
+                            </button>
+
                             <button
                               onClick={() => openEdit(user)}
                               style={{ padding: "6px 14px", border: "1px solid #e5e7eb", borderRadius: "6px", background: "white", cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", color: "#374151" }}

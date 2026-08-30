@@ -57,14 +57,41 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = (user as any).role;
         token.color = (user as any).color;
+        token.tokenVersion = (user as any).tokenVersion ?? 1;
+        return token;
       }
+
+      // Validar si la sesión fue invalidada por el administrador (forzar cierre de sesión)
+      if (token.id) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { tokenVersion: true, role: true, color: true }
+          });
+          
+          if (!dbUser || (dbUser.tokenVersion && token.tokenVersion && dbUser.tokenVersion !== token.tokenVersion)) {
+            // Versión de token diferente: la sesión ha sido revocada por el administrador
+            return {};
+          }
+          if (dbUser) {
+            token.role = dbUser.role;
+            token.color = dbUser.color;
+          }
+        } catch (e) {
+          console.error("Error verificando tokenVersion:", e);
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
+      if (token && token.id) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
         (session.user as any).color = token.color;
+      } else {
+        // Sesión invalidada
+        return {} as any;
       }
       return session;
     }
