@@ -471,11 +471,51 @@ export default function Map({
     }
   }, [initialMapState]);
   
-  // Estados de Geolocalización
+  // Estados de Geolocalización y Técnicos en Vivo
   const [isTracking, setIsTracking] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number, lng: number, accuracy: number } | null>(null);
+  const [liveTechs, setLiveTechs] = useState<any[]>([]);
 
   const mapRef = useRef<any>(null);
+
+  // Solicitar ubicación al entrar a la app y guardarla
+  useEffect(() => {
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+          setUserLocation(loc);
+          // Compartir ubicación al servidor para que otros técnicos lo vean
+          fetch("/api/tech-locations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy })
+          }).catch(() => {});
+        },
+        (err) => {
+          console.log("Permiso de GPS:", err.message);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+  }, []);
+
+  // Polling de técnicos en vivo cada 8 segundos
+  useEffect(() => {
+    const fetchTechLocations = async () => {
+      try {
+        const res = await fetch("/api/tech-locations");
+        if (res.ok) {
+          const data = await res.json();
+          setLiveTechs(data);
+        }
+      } catch (e) {}
+    };
+
+    fetchTechLocations();
+    const interval = setInterval(fetchTechLocations, 8000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleCenterOnUser = () => {
     if (userLocation && mapRef.current) {
@@ -495,25 +535,45 @@ export default function Map({
       >
         <TileLayer url={tileUrl} maxZoom={21} maxNativeZoom={21} />
         
-        {/* Marcador del Usuario (GPS) */}
-        {isTracking && userLocation && (
+        {/* Marcador de mi posición GPS */}
+        {userLocation && (
           <>
             <Circle 
               center={[userLocation.lat, userLocation.lng]} 
-              radius={userLocation.accuracy} 
+              radius={userLocation.accuracy || 20} 
               pathOptions={{ fillColor: "#3b82f6", fillOpacity: 0.15, color: "#3b82f6", weight: 1 }} 
             />
             <Marker 
               position={[userLocation.lat, userLocation.lng]} 
               icon={L.divIcon({
-                html: `<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#3b82f6" stroke="white" stroke-width="3" /><circle cx="12" cy="12" r="12" fill="#3b82f6" fill-opacity="0.2" /></svg>`,
+                html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+                  <div style="background:#0284c7;color:white;font-size:10px;font-weight:800;padding:2px 6px;border-radius:10px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);margin-bottom:2px;border:1px solid white;">Tú</div>
+                  <svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#0284c7" stroke="white" stroke-width="3" /><circle cx="12" cy="12" r="12" fill="#0284c7" fill-opacity="0.2" /></svg>
+                </div>`,
                 className: "user-location-marker",
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
+                iconSize: [60, 40],
+                iconAnchor: [30, 28]
               })}
             />
           </>
         )}
+
+        {/* Pines de otros técnicos en vivo en el mapa */}
+        {liveTechs.map((tech) => (
+          <Marker
+            key={tech.userId}
+            position={[tech.lat, tech.lng]}
+            icon={L.divIcon({
+              html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+                <div style="background:${tech.color || '#FF7900'};color:white;font-size:10px;font-weight:800;padding:2px 6px;border-radius:10px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);margin-bottom:2px;border:1px solid white;">${tech.name || 'Técnico'}</div>
+                <div style="width:16px;height:16px;border-radius:50%;background:${tech.color || '#FF7900'};border:2.5px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35);"></div>
+              </div>`,
+              className: "tech-live-marker",
+              iconSize: [80, 40],
+              iconAnchor: [40, 26]
+            })}
+          />
+        ))}
 
         {/* Marcadores de CTOs */}
         <CtoMarkers 
@@ -530,7 +590,16 @@ export default function Map({
         <MapStateAndTracking 
           initialMapState={initialMapState} 
           isTracking={isTracking} 
-          onLocationUpdate={setUserLocation} 
+          onLocationUpdate={(loc) => {
+            setUserLocation(loc);
+            if (loc) {
+              fetch("/api/tech-locations", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy })
+              }).catch(() => {});
+            }
+          }} 
           userLocation={userLocation}
         />
 
@@ -552,6 +621,13 @@ export default function Map({
                 (pos) => {
                   const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
                   setUserLocation(loc);
+                  // Enviar ubicación en vivo al servidor para sincronizar pin
+                  fetch("/api/tech-locations", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy })
+                  }).catch(() => {});
+
                   if (mapRef.current) {
                     mapRef.current.flyTo([loc.lat, loc.lng], 18, { animate: true, duration: 1.5 });
                   }

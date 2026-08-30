@@ -592,46 +592,6 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 <circle cx="12" cy="7" r="4" />
               </svg>
             </button>
-            {/* Botón Admin Exclusivo: Sincronizar Mapa Global a Todos (📡) */}
-            {isAdmin && (
-              <button 
-                onClick={async () => {
-                  try {
-                    const res = await fetch("/api/realtime", { method: "POST" });
-                    const data = await res.json();
-                    if (res.ok) {
-                      reloadCtosSilently();
-                      alert("📡 Señal de actualización emitida: El mapa se ha actualizado y se sincronizará automáticamente en todos los dispositivos de técnicos y usuarios.");
-                    } else {
-                      alert(data.error || "No se pudo emitir la sincronización.");
-                    }
-                  } catch (e) {
-                    alert("Error de conexión al sincronizar.");
-                  }
-                }} 
-                className="btn" 
-                title="Emitir actualización forzosa del mapa a todos los usuarios conectados"
-                style={{ 
-                  padding: "6px 9px", 
-                  background: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)", 
-                  color: "#ffffff", 
-                  minHeight: "34px", 
-                  display: "flex", 
-                  alignItems: "center", 
-                  justifyContent: "center", 
-                  gap: "4px",
-                  fontSize: "0.78rem",
-                  fontWeight: 700,
-                  border: "1px solid #a78bfa", 
-                  borderRadius: "6px", 
-                  cursor: "pointer",
-                  boxShadow: "0 2px 6px rgba(139, 92, 246, 0.3)"
-                }}
-              >
-                <span>📡</span> <span className="hide-mobile">Sincronizar Todos</span>
-              </button>
-            )}
-
             {isAdmin && (
               <button 
                 onClick={() => window.location.href = "/admin"} 
@@ -642,7 +602,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               </button>
             )}
             <button 
-              onClick={() => signOut()} 
+              onClick={() => signOut({ callbackUrl: "/login?loggedOut=true" })} 
               className="btn" 
               style={{ padding: "6px 10px", fontSize: "0.78rem", background: "#fee2e2", color: "#dc2626", minHeight: "34px", fontWeight: 600, borderRadius: "6px" }}
             >

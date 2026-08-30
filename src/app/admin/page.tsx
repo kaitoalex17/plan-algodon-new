@@ -244,11 +244,23 @@ export default function AdminPage() {
               </svg>
               📅 Informe por Período de Auditoría
             </Link>
+            <Link href="/admin/technicians-sync" className="btn" style={{ background: 'linear-gradient(135deg, #FF7900 0%, #ea580c 100%)', color: 'white', justifyContent: 'center', padding: '0.75rem', gap: '8px', fontWeight: 800, boxShadow: '0 4px 10px rgba(255, 121, 0, 0.3)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+              </svg>
+              📡 Control de Sincronización y Técnicos
+            </Link>
+            <Link href="/admin/anti-fraud" className="btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1.5px solid #ef4444', justifyContent: 'center', padding: '0.75rem', gap: '8px', fontWeight: 800 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              🛡️ Control Antifraude (Verificación GPS)
+            </Link>
             <Link href="/admin/cross-audits" className="btn" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1.5px solid #3b82f6', justifyContent: 'center', padding: '0.75rem', gap: '8px', fontWeight: 700 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
               </svg>
-              🔄 Control de Cierres Cruzados / Reasignaciones
+              Auditoría Cruzada (Técnicos)
             </Link>
 
             {/* BOTÓN NUEVO DE AJUSTES UNIFICADOS */}

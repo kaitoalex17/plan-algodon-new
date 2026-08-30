@@ -1,13 +1,23 @@
 "use client";
 import { signIn } from "next-auth/react";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center' }}>Cargando...</div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
+  const searchParams = useSearchParams();
+  const isLoggedOut = searchParams.get("loggedOut") === "true";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +41,12 @@ export default function LoginPage() {
           <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#111827' }}>Plan Algodon Auditoria</h1>
           <p style={{ color: '#4b5563', fontSize: '0.95rem', marginTop: '0.5rem' }}>Acceso al sistema</p>
         </div>
+
+        {isLoggedOut && (
+          <div style={{ background: '#dbeafe', color: '#1e40af', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.88rem', textAlign: 'center', fontWeight: 600 }}>
+            ℹ️ Has cerrado sesión correctamente. Introduce tus credenciales para volver a ingresar.
+          </div>
+        )}
         
         {error && <div style={{ background: '#fee2e2', color: '#ef4444', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.9rem', textAlign: 'center' }}>{error}</div>}
         
