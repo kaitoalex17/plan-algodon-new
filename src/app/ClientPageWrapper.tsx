@@ -285,6 +285,16 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
     };
   }, []);
 
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setIsPwaInstallable(false);
+      setDeferredPrompt(null);
+    }
+  };
+
   // Centrar mapa en CTO buscada tras 2 segundos de inactividad al escribir
   useEffect(() => {
     if (!searchQuery.trim()) return;
@@ -1128,15 +1138,15 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             {/* Ficha de Información de Usuario */}
             <div style={{ background: "var(--bg-color)", padding: "12px", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "1.5rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ background: "var(--primary-color)", color: "white", width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "1.2rem" }}>
-                  {(session?.user?.name || "T")?.[0]?.toUpperCase()}
+                <div style={{ background: (session?.user as any)?.color || "var(--primary-color)", color: "white", width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "1.2rem" }}>
+                  {(session?.user?.name || session?.user?.email || "T")?.[0]?.toUpperCase()}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-color)" }}>
                     {session?.user?.name || "Técnico"}
                   </span>
                   <span style={{ fontSize: "0.8rem", color: "var(--text-color)", opacity: 0.8 }}>
-                    {session?.user?.email}
+                    {session?.user?.email || ""}
                   </span>
                   <span style={{ fontSize: "0.75rem", background: "var(--border-color)", color: "var(--text-color)", padding: "2px 6px", borderRadius: "4px", alignSelf: "flex-start", marginTop: "4px", fontWeight: 600 }}>
                     {(session?.user as any)?.role || "USER"}
