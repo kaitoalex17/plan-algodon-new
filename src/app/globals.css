@@ -123,28 +123,29 @@ a {
   margin: 0 auto 1.5rem auto;
 }
 
-/* Lock general page viewport zooming and bouncing on mobile */
+/* Lock general page viewport zooming and bouncing on mobile ONLY on the main map root */
 html, body {
   width: 100%;
   height: 100%;
-  overflow: hidden;
-  position: fixed;
-  touch-action: none;
-  -webkit-overflow-scrolling: auto;
+  overflow-x: hidden;
 }
 
-/* Allow normal scrolling and zooming on admin pages */
-html.admin-page, body.admin-page {
-  width: auto;
-  height: auto;
-  overflow: auto !important;
+/* Allow normal scrolling and zooming on admin and dedicated pages */
+html.admin-page, body.admin-page,
+html.scrollable-page, body.scrollable-page,
+body.photo-guide-page {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-y: auto !important;
   position: static !important;
-  touch-action: auto !important;
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
 }
 
 /* Allow scrolling on interactive modal and drawer containers */
-.cto-drawer, .glass-panel, .input-field, textarea, select, .modal-content, .scrollable-content {
-  touch-action: auto;
+.cto-drawer, .glass-panel, .input-field, textarea, select, .modal-content, .scrollable-content, .photo-guide-container {
+  touch-action: pan-y !important;
 }
 
 /* Temas predeterminados a nivel de página (10 Temas Premium) */

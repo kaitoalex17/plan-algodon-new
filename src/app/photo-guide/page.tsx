@@ -204,6 +204,15 @@ function PhotoGuideContent() {
         }
       })
       .catch(() => {});
+
+    // Añadir clase photo-guide-page para habilitar scroll nativo completo
+    document.body.classList.add("photo-guide-page");
+    document.documentElement.classList.add("photo-guide-page");
+
+    return () => {
+      document.body.classList.remove("photo-guide-page");
+      document.documentElement.classList.remove("photo-guide-page");
+    };
   }, []);
 
   const loadCtoData = useCallback(async () => {
