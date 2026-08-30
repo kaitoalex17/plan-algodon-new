@@ -509,7 +509,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             style={{ fontSize: "1.05rem", fontWeight: 700, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", userSelect: "none" }}
             title="Ver estadísticas del proyecto"
           >
-            <span style={{ color: "var(--primary-color)" }}>●</span> Plan Algodón
+            <span style={{ color: "var(--primary-color)" }}>●</span> Plan Algodón Fase 3
           </h1>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
             {/* Botón Refrescar (🔄) */}

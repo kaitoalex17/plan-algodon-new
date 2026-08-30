@@ -28,9 +28,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nombre de archivo no válido" }, { status: 400 });
     }
 
-    const filepath = join(process.cwd(), "public", "uploads", filename);
+    function findFileRecursive(dir: string, targetName: string): string | null {
+      try {
+        if (!fs.existsSync(dir)) return null;
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            const found = findFileRecursive(fullPath, targetName);
+            if (found) return found;
+          } else if (entry.name === targetName) {
+            return fullPath;
+          }
+        }
+      } catch (err) {
+        console.error("Error buscando archivo para rotar:", err);
+      }
+      return null;
+    }
+
+    const uploadDir = join(process.cwd(), "public", "uploads");
+    let filepath = join(uploadDir, filename);
     if (!fs.existsSync(filepath)) {
-      return NextResponse.json({ error: "Archivo físico no encontrado" }, { status: 404 });
+      const found = findFileRecursive(uploadDir, filename);
+      if (found) filepath = found;
+      else return NextResponse.json({ error: "Archivo físico no encontrado" }, { status: 404 });
     }
 
     // Rotar imagen

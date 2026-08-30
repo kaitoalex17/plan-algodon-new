@@ -25,8 +25,8 @@ RUN npm run build
 # Eliminar la URL dummy para que en runtime use la real
 ENV DATABASE_URL=""
 
-EXPOSE 3000
-ENV PORT=3000
+EXPOSE 3020
+ENV PORT=3020
 ENV HOSTNAME="0.0.0.0"
 
 # Al arrancar: aplicar esquema a la BD real, ejecutar seed si es necesario, y lanzar la app

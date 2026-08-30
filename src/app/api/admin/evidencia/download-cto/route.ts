@@ -37,14 +37,37 @@ export async function GET(req: NextRequest) {
     const zip = new JSZip();
     const uploadDir = join(process.cwd(), "public", "uploads");
 
+    function findFileRecursive(dir: string, targetName: string): string | null {
+      try {
+        if (!fs.existsSync(dir)) return null;
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            const found = findFileRecursive(fullPath, targetName);
+            if (found) return found;
+          } else if (entry.name === targetName) {
+            return fullPath;
+          }
+        }
+      } catch (err) {
+        console.error("Error buscando archivo para zip:", err);
+      }
+      return null;
+    }
+
     for (const image of cto.images) {
       const filename = image.url.split("/").pop();
       if (!filename) continue;
 
-      const filepath = join(uploadDir, filename);
+      let filepath = join(uploadDir, filename);
+      if (!fs.existsSync(filepath)) {
+        const found = findFileRecursive(uploadDir, filename);
+        if (found) filepath = found;
+      }
+
       if (fs.existsSync(filepath)) {
         const fileBuffer = fs.readFileSync(filepath);
-        // Usar el nombre original o el nombre de archivo guardado en el zip
         zip.file(filename, fileBuffer);
       }
     }

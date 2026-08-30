@@ -24,10 +24,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Imagen no encontrada" }, { status: 404 });
     }
 
+    function findFileRecursive(dir: string, targetName: string): string | null {
+      try {
+        if (!fs.existsSync(dir)) return null;
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            const found = findFileRecursive(fullPath, targetName);
+            if (found) return found;
+          } else if (entry.name === targetName) {
+            return fullPath;
+          }
+        }
+      } catch (err) {
+        console.error("Error buscando archivo para eliminar:", err);
+      }
+      return null;
+    }
+
     // Extraer el nombre del archivo de la URL (/api/uploads/filename)
     const filename = image.url.split("/").pop();
     if (filename) {
-      const filepath = join(process.cwd(), "public", "uploads", filename);
+      const uploadDir = join(process.cwd(), "public", "uploads");
+      let filepath = join(uploadDir, filename);
+      if (!fs.existsSync(filepath)) {
+        const found = findFileRecursive(uploadDir, filename);
+        if (found) filepath = found;
+      }
       if (fs.existsSync(filepath)) {
         try {
           fs.unlinkSync(filepath);

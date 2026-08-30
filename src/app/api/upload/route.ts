@@ -30,9 +30,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "CTO no encontrado" }, { status: 404 });
     }
 
-    const uploadDir = join(process.cwd(), "public", "uploads");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, "0");
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const year = now.getFullYear();
+    const dateFolderName = `${day}-${month}-${year}`;
+    const safeCtoNum = (cto.num || "CTO").replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    const baseUploadDir = join(process.cwd(), "public", "uploads");
+    const ctoUploadDir = join(baseUploadDir, dateFolderName, safeCtoNum);
+    if (!fs.existsSync(ctoUploadDir)) {
+      fs.mkdirSync(ctoUploadDir, { recursive: true });
     }
 
     // Obtener parámetros de compresión de la base de datos
@@ -128,10 +136,11 @@ export async function POST(req: Request) {
       }
 
       const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      const filename = `${uniqueSuffix}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-      const filepath = join(uploadDir, filename);
+      const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const filename = `${uniqueSuffix}-${cleanFileName}`;
+      const filepath = join(ctoUploadDir, filename);
 
-      // 1. Guardar localmente
+      // 1. Guardar localmente en la subcarpeta
       await writeFile(filepath, processedBuffer);
 
       // 2. Guardar en Google Drive si está habilitado y la carpeta existe

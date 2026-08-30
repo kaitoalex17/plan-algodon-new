@@ -27,18 +27,41 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nombre de archivo antiguo no válido" }, { status: 400 });
     }
 
-    const oldFilepath = join(process.cwd(), "public", "uploads", oldFilename);
-    if (!fs.existsSync(oldFilepath)) {
-      return NextResponse.json({ error: "Archivo original no encontrado" }, { status: 404 });
+    function findFileRecursive(dir: string, targetName: string): string | null {
+      try {
+        if (!fs.existsSync(dir)) return null;
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            const found = findFileRecursive(fullPath, targetName);
+            if (found) return found;
+          } else if (entry.name === targetName) {
+            return fullPath;
+          }
+        }
+      } catch (err) {
+        console.error("Error buscando archivo para renombrar:", err);
+      }
+      return null;
     }
 
+    const uploadDir = join(process.cwd(), "public", "uploads");
+    let oldFilepath = join(uploadDir, oldFilename);
+    if (!fs.existsSync(oldFilepath)) {
+      const found = findFileRecursive(uploadDir, oldFilename);
+      if (found) oldFilepath = found;
+      else return NextResponse.json({ error: "Archivo original no encontrado" }, { status: 404 });
+    }
+
+    const containingDir = join(oldFilepath, "..");
     const ext = oldFilename.split(".").pop();
     const cleanName = newName.replace(/[^a-zA-Z0-9_-]/g, "_");
     // Conservamos el sufijo único original para evitar colisiones
     const parts = oldFilename.split("-");
     const uniqueSuffix = parts[0] + "-" + parts[1]; // timestamp-random
     const newFilename = `${uniqueSuffix}-${cleanName}.${ext}`;
-    const newFilepath = join(process.cwd(), "public", "uploads", newFilename);
+    const newFilepath = join(containingDir, newFilename);
 
     // Renombrar en disco
     fs.renameSync(oldFilepath, newFilepath);

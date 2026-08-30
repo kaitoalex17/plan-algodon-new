@@ -6,13 +6,13 @@ import { Providers } from "@/components/Providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Plan Algodon Auditoria",
-  description: "Gestión y auditoría de recursos en mapa",
+  title: "Plan Algodón Fase 3",
+  description: "Gestión y auditoría de recursos en mapa - Fase 3",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Algodón",
+    title: "Algodón Fase 3",
   },
 };
 

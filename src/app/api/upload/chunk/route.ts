@@ -140,9 +140,23 @@ export async function POST(req: Request) {
       }
     }
 
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, "0");
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const year = now.getFullYear();
+    const dateFolderName = `${day}-${month}-${year}`;
+    const safeCtoNum = (cto.num || "CTO").replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    const baseUploadDir = join(process.cwd(), "public", "uploads");
+    const ctoUploadDir = join(baseUploadDir, dateFolderName, safeCtoNum);
+    if (!fs.existsSync(ctoUploadDir)) {
+      fs.mkdirSync(ctoUploadDir, { recursive: true });
+    }
+
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const filename = `${uniqueSuffix}-${fileName.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-    const filepath = join(uploadDir, filename);
+    const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const filename = `${uniqueSuffix}-${cleanFileName}`;
+    const filepath = join(ctoUploadDir, filename);
 
     // 1. Guardar localmente la imagen ensamblada
     await writeFile(filepath, processedBuffer);

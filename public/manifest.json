@@ -1,7 +1,7 @@
 {
-  "name": "Plan Algodón Auditoría",
-  "short_name": "Algodón",
-  "description": "Gestión y auditoría de recursos en mapa",
+  "name": "Plan Algodón Fase 3",
+  "short_name": "Algodón F3",
+  "description": "Gestión y auditoría de recursos en mapa - Fase 3",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f3f4f6",

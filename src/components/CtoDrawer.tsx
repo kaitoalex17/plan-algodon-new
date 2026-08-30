@@ -124,7 +124,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [portsCapacity, setPortsCapacity] = useState<number>(8);
   interface PortItem {
     id: number;
-    status: "LIBRE" | "OCUPADO" | "OTRO";
+    status: "LIBRE" | "OCUPADO" | "OTRO" | "CTR";
     customNumber: string;
   }
   const [portsList, setPortsList] = useState<PortItem[]>([]);
@@ -193,7 +193,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     });
   };
 
-  const handlePortStatusChange = (index: number, newStatus: "LIBRE" | "OCUPADO" | "OTRO") => {
+  const handlePortStatusChange = (index: number, newStatus: "LIBRE" | "OCUPADO" | "OTRO" | "CTR") => {
     setPortsList(prev => {
       const copy = [...prev];
       copy[index] = {
@@ -258,7 +258,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       }
     }
 
-    const occupiedCount = fullList.filter(p => p.status === "OCUPADO" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length;
+    const occupiedCount = fullList.filter(p => p.status === "OCUPADO" || p.status === "CTR" || (p.status === "OTRO" && p.customNumber.trim() !== "")).length;
     setPuertosTotal(portsCapacity);
     setPuertosOcupados(occupiedCount);
     setPortsList(fullList);
@@ -279,6 +279,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       const p = fullList[i - 1];
       if (p.status === "OCUPADO") {
         commentLines.push(`Puerto ${i}: OCUPADO/NO LOCALIZADO`);
+      } else if (p.status === "CTR") {
+        commentLines.push(`Puerto ${i}: CTR`);
       } else if (p.status === "OTRO") {
         const num = p.customNumber && p.customNumber.trim() ? p.customNumber.trim() : "SIN NÚMERO";
         commentLines.push(`Puerto ${i}: ${num}`);
@@ -847,20 +849,45 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
   const handleConfirmChecklist = async () => {
     const currentUserId = (session?.user as any)?.id;
+    const auditorName = session?.user?.name || session?.user?.email || "Auditor";
     const activeSubStatus = subStatuses.find(s => s.id === subStatusId);
     const isEnConstruccion = activeSubStatus?.name?.trim().toUpperCase() === "EN CONSTRUCCIÓN" || activeSubStatus?.name?.trim().toUpperCase() === "EN CONSTRUCCION";
 
-    const updatePayload = {
+    // Validar fotos mínimas
+    const imgs = details?.images || [];
+    const hasEntorno = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_entorno"));
+    const hasAbierta = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_cto_abierta") || (i.url || "").toLowerCase().includes("_abierta"));
+    const hasEtqCto = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_etiquetado_cto"));
+    const hasEtqCab = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_etiquetado_cableado") || (i.url || "").toLowerCase().includes("_cableado"));
+    const hasPot = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_potencia"));
+    
+    const missingPhotos: string[] = [];
+    if (!hasEntorno) missingPhotos.push("Foto entorno");
+    if (!hasAbierta) missingPhotos.push("CTO abierta");
+    if (!hasEtqCto) missingPhotos.push("Etiquetado CTO");
+    if (!hasEtqCab) missingPhotos.push("Etiquetado cableado");
+    if (!hasPot) missingPhotos.push("Medición potencia");
+
+    let auditLogAction = `Auditada y cerrada como CORRECTO por ${auditorName}`;
+    if (missingPhotos.length > 0) {
+      auditLogAction = `⚠️ Auditada con FOTOS FALTANTES (${missingPhotos.join(", ")}) por ${auditorName}`;
+    }
+
+    const gpsLocation = await getQuickGpsLocation();
+
+    const updatePayload: any = {
       status: "CORRECTO",
       assignedToId: currentUserId || assignedToId || null,
       auditedById: currentUserId || null,
       hasFormulario: checkFormulario,
-      hasDrive: checkDrive,
-      hasAntala: isEnConstruccion ? checkAntala : false
+      hasDrive: true, // Se marca como procesada la carpeta independiente
+      hasAntala: isEnConstruccion ? checkAntala : false,
+      location: gpsLocation,
+      customAction: auditLogAction
     };
 
     setHasFormulario(checkFormulario);
-    setHasDrive(checkDrive);
+    setHasDrive(true);
     setHasAntala(isEnConstruccion ? checkAntala : false);
     setStatus("CORRECTO");
     if (currentUserId) {
@@ -1179,6 +1206,14 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <div style={{ display: "flex", gap: "8px", marginTop: "0.5rem" }}>
                 <button 
                   type="button"
+                  onClick={() => window.open(`/photo-guide?ctoId=${cto.id}`, "_blank")}
+                  className="btn" 
+                  style={{ flex: 1, minHeight: "34px", background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", boxShadow: "0 2px 6px rgba(2,132,199,0.3)" }}
+                >
+                  📸 Guía fotográfica
+                </button>
+                <button 
+                  type="button"
                   onClick={() => window.open(`/form-guide?ctoId=${cto.id}`, "_blank")}
                   className="btn" 
                   style={{ flex: 1, minHeight: "34px", background: "#8b5cf6", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
@@ -1192,7 +1227,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   className="btn" 
                   style={{ flex: 1, minHeight: "34px", background: "#a855f7", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", opacity: fetchingFormSheet ? 0.7 : 1 }}
                 >
-                  {fetchingFormSheet ? "Refrescando..." : "Ficha formulario"}
+                  {fetchingFormSheet ? "..." : "Ficha"}
                 </button>
               </div>
 
@@ -2177,26 +2212,45 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         </div>
       )}
 
-      {/* VISOR LIGHTBOX DE IMAGEN A PANTALLA COMPLETA */}
+      {/* VISOR LIGHTBOX DE IMAGEN A PANTALLA COMPLETA (MEJORADO EN ALTA DEFINICIÓN) */}
       {activeImgIndex !== null && details?.images && details.images[activeImgIndex] && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", zIndex: 5000, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          
+        <div 
+          style={{ 
+            position: "fixed", 
+            inset: 0, 
+            background: "rgba(0,0,0,0.96)", 
+            zIndex: 5000, 
+            display: "flex", 
+            flexDirection: "column", 
+            overflow: "hidden",
+            backdropFilter: "blur(8px)",
+            userSelect: "none"
+          }}
+        >
           {/* Header */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", color: "white", zIndex: 10 }}>
-            <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
-              Foto {activeImgIndex + 1} de {details.images.length}
-            </span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", color: "white", zIndex: 10, background: "rgba(0,0,0,0.5)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "0.85rem", fontWeight: 800, background: "rgba(255,255,255,0.15)", padding: "3px 10px", borderRadius: "20px" }}>
+                {activeImgIndex + 1} / {details.images.length}
+              </span>
+              <span style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: 600 }}>
+                {details.images[activeImgIndex].url.split("/").pop() || "Evidencia"}
+              </span>
+            </div>
             <button
               type="button"
-              onClick={() => setActiveImgIndex(null)}
-              style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontSize: "1.2rem", fontWeight: 700 }}
+              onClick={() => {
+                setZoomScale(1);
+                setActiveImgIndex(null);
+              }}
+              style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "50%", width: "38px", height: "38px", cursor: "pointer", fontSize: "1.2rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}
             >
               ✕
             </button>
           </div>
 
           {/* Central Image Viewer with Navigation */}
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", padding: "0 10px" }}>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", padding: "0 8px", overflow: "hidden" }}>
             {/* Arrow Left */}
             <button
               type="button"
@@ -2204,24 +2258,29 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 setZoomScale(1);
                 setActiveImgIndex(prev => (prev !== null && prev > 0 ? prev - 1 : (details.images.length - 1)));
               }}
-              style={{ background: "rgba(0,0,0,0.5)", border: "none", color: "white", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", zIndex: 10 }}
+              style={{ background: "rgba(15, 23, 42, 0.75)", border: "1px solid rgba(255,255,255,0.2)", color: "white", width: "46px", height: "46px", borderRadius: "50%", cursor: "pointer", zIndex: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}
+              title="Foto anterior"
             >
               ◀
             </button>
 
-            {/* Image Container */}
-            <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", height: "100%", width: "100%", position: "relative", overflow: "hidden" }}>
+            {/* Image Container with Smooth Zoom & Double Tap */}
+            <div 
+              onDoubleClick={() => setZoomScale(prev => (prev === 1 ? 2.5 : 1))}
+              style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", height: "100%", width: "100%", position: "relative", overflow: "auto", cursor: zoomScale > 1 ? "grab" : "zoom-in" }}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`${details.images[activeImgIndex].url}?t=${cacheKey}`}
-                alt="Visor"
+                alt="Visor de alta resolución"
                 style={{ 
-                  maxHeight: "80vh", 
-                  maxWidth: "100%", 
+                  maxHeight: "82vh", 
+                  maxWidth: "92vw", 
                   objectFit: "contain", 
-                  borderRadius: "8px", 
-                  transition: "transform 0.2s",
-                  transform: `scale(${zoomScale})`
+                  borderRadius: "10px", 
+                  transition: "transform 0.25s cubic-bezier(0.2, 0, 0.2, 1)",
+                  transform: `scale(${zoomScale})`,
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.5)"
                 }}
               />
             </div>
@@ -2233,7 +2292,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 setZoomScale(1);
                 setActiveImgIndex(prev => (prev !== null && prev < details.images.length - 1 ? prev + 1 : 0));
               }}
-              style={{ background: "rgba(0,0,0,0.5)", border: "none", color: "white", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", zIndex: 10 }}
+              style={{ background: "rgba(15, 23, 42, 0.75)", border: "1px solid rgba(255,255,255,0.2)", color: "white", width: "46px", height: "46px", borderRadius: "50%", cursor: "pointer", zIndex: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}
+              title="Foto siguiente"
             >
               ▶
             </button>
@@ -2346,13 +2406,13 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         </div>
       )}
 
-      {/* MODAL DE CHECKLIST DE AUDITORÍA (CERRAR Y GUARDAR) */}
+      {/* MODAL DE AUDITORÍA Y CONFIRMACIÓN DE CARPETA (CERRAR Y GUARDAR) */}
       {showChecklistModal && (
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0, 0, 0, 0.6)",
-          backdropFilter: "blur(4px)",
+          background: "rgba(0, 0, 0, 0.7)",
+          backdropFilter: "blur(5px)",
           zIndex: 4000,
           display: "flex",
           alignItems: "center",
@@ -2361,65 +2421,114 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         }}>
           <div className="glass-panel" style={{
             width: "100%",
-            maxWidth: "380px",
-            background: "var(--card-bg)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "16px",
-            padding: "24px",
-            boxShadow: "0 10px 25px rgba(0,0,0,0.2)"
+            maxWidth: "440px",
+            background: "var(--card-bg, #0f172a)",
+            border: "1.5px solid var(--border-color, #334155)",
+            borderRadius: "18px",
+            padding: "22px",
+            boxShadow: "0 15px 35px rgba(0,0,0,0.4)",
+            color: "var(--text-color, #f8fafc)"
           }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "8px", color: "var(--text-color)" }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <h2 style={{ fontSize: "1.15rem", fontWeight: 800, marginBottom: "0.4rem", display: "flex", alignItems: "center", gap: "8px", color: "var(--text-color, white)" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
-              Requisitos de Auditoría
+              Cierre y Auditoría — CTO {cto.num}
             </h2>
-            <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "1.25rem" }}>
-              Marca los siguientes requisitos obligatorios para poder certificar la CTO como <strong>CORRECTO</strong>:
+            <p style={{ fontSize: "0.8rem", color: "#94a3b8", marginBottom: "1.2rem" }}>
+              Verifica los requisitos mínimos para certificar esta CTO como <strong>CORRECTO</strong>:
             </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "1.5rem" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", borderRadius: "8px", background: "var(--bg-color)", border: "1px solid var(--border-color)", cursor: "pointer" }}>
+            {/* Checklist de requisitos */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "1.2rem" }}>
+              
+              {/* Opción 1: Crear Carpeta Independiente (siempre marcada y bloqueada si cumple) */}
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: "rgba(16, 185, 129, 0.1)", border: "1.5px solid #10b981", cursor: "default" }}>
+                <input 
+                  type="checkbox" 
+                  checked={true}
+                  readOnly
+                  disabled
+                  style={{ width: "18px", height: "18px", accentColor: "#10b981", cursor: "default" }}
+                />
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <span style={{ fontSize: "0.86rem", fontWeight: 800, color: "#10b981" }}>📁 Crear carpeta independiente</span>
+                  <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>Se organizará en /public/uploads/DD-MM-AAAA/{cto.num}</span>
+                </div>
+              </label>
+
+              {/* Opción 2: Formulario Completo */}
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: "var(--bg-color)", border: "1px solid var(--border-color)", cursor: "pointer" }}>
                 <input 
                   type="checkbox" 
                   checked={checkFormulario} 
                   onChange={e => setCheckFormulario(e.target.checked)} 
                   style={{ width: "18px", height: "18px", accentColor: "#10b981", cursor: "pointer" }}
                 />
-                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>1. Formulario completo</span>
+                <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-color)" }}>📋 Formulario completo / Guía realizada</span>
               </label>
 
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", borderRadius: "8px", background: "var(--bg-color)", border: "1px solid var(--border-color)", cursor: "pointer" }}>
-                <input 
-                  type="checkbox" 
-                  checked={checkDrive} 
-                  onChange={e => setCheckDrive(e.target.checked)} 
-                  style={{ width: "18px", height: "18px", accentColor: "#10b981", cursor: "pointer" }}
-                />
-                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>2. Fotos subidas a Drive</span>
-              </label>
+              {/* Verificación de Fotos Mínimas */}
+              {(() => {
+                const imgs = details?.images || [];
+                const hasEntorno = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_entorno"));
+                const hasAbierta = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_cto_abierta") || (i.url || "").toLowerCase().includes("_abierta"));
+                const hasEtqCto = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_etiquetado_cto"));
+                const hasEtqCab = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_etiquetado_cableado") || (i.url || "").toLowerCase().includes("_cableado"));
+                const hasPot = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_potencia"));
+                const missingList = [];
+                if (!hasEntorno) missingList.push("Foto entorno");
+                if (!hasAbierta) missingList.push("CTO abierta");
+                if (!hasEtqCto) missingList.push("Etiquetado CTO");
+                if (!hasEtqCab) missingList.push("Etiquetado cableado");
+                if (!hasPot) missingList.push("Medición potencia");
+
+                const allPhotosPresent = missingList.length === 0;
+
+                return (
+                  <div style={{ background: allPhotosPresent ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)", border: `1.5px solid ${allPhotosPresent ? "#10b981" : "#ef4444"}`, borderRadius: "10px", padding: "10px 12px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "0.82rem", fontWeight: 800, color: allPhotosPresent ? "#10b981" : "#ef4444" }}>
+                        {allPhotosPresent ? "✓ Fotos mínimas requeridas completadas" : "⚠️ Faltan fotos mínimas requeridas:"}
+                      </span>
+                      <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#94a3b8" }}>{5 - missingList.length} / 5</span>
+                    </div>
+                    {!allPhotosPresent && (
+                      <div style={{ marginTop: "6px" }}>
+                        <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "0.75rem", color: "#f87171", fontWeight: 600 }}>
+                          {missingList.map((m, i) => <li key={i}>{m}</li>)}
+                        </ul>
+                        <p style={{ margin: "6px 0 0 0", fontSize: "0.72rem", color: "#fca5a5", fontStyle: "italic" }}>
+                          ℹ️ Si cierras la auditoría sin estas fotos, quedará registrado en el historial de la CTO con tu usuario, hora y geolocalización.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {(subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCIÓN" || 
                 subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCION") && (
-                <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", borderRadius: "8px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid #f59e0b", cursor: "pointer" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: "rgba(245, 158, 11, 0.1)", border: "1.5px solid #f59e0b", cursor: "pointer" }}>
                   <input 
                     type="checkbox" 
                     checked={checkAntala} 
                     onChange={e => setCheckAntala(e.target.checked)} 
                     style={{ width: "18px", height: "18px", accentColor: "#f59e0b", cursor: "pointer" }}
                   />
-                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#d97706" }}>3. Registro en Antala</span>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#d97706" }}>3. Registro en Antala</span>
                 </label>
               )}
             </div>
 
+            {/* Botones de acción */}
             <div style={{ display: "flex", gap: "10px" }}>
               <button 
                 type="button" 
                 onClick={() => setShowChecklistModal(false)} 
                 className="btn" 
-                style={{ flex: 1, background: "var(--border-color)", color: "var(--text-color)" }}
+                style={{ flex: 1, background: "var(--border-color)", color: "var(--text-color)", fontWeight: 700 }}
               >
                 Cancelar
               </button>
@@ -2427,23 +2536,16 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 type="button" 
                 onClick={handleConfirmChecklist} 
                 className="btn" 
-                disabled={!(checkFormulario && checkDrive && (
-                  !(subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCIÓN" || 
-                    subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCION") || 
-                  checkAntala
-                ))}
                 style={{ 
-                  flex: 1.5, 
-                  background: (checkFormulario && checkDrive && (
-                    !(subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCIÓN" || 
-                      subStatuses.find(s => s.id === subStatusId)?.name?.trim().toUpperCase() === "EN CONSTRUCCION") || 
-                    checkAntala
-                  )) ? "#10b981" : "var(--border-color)", 
+                  flex: 1.6, 
+                  background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", 
                   color: "white", 
-                  fontWeight: 700 
+                  fontWeight: 800,
+                  fontSize: "0.88rem",
+                  boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)"
                 }}
               >
-                Confirmar y Cerrar
+                Confirmar y Auditar
               </button>
             </div>
           </div>
@@ -2842,15 +2944,16 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     const isLibre = port.status === "LIBRE";
                     const isOcupado = port.status === "OCUPADO";
                     const isOtro = port.status === "OTRO";
+                    const isCtr = port.status === "CTR";
 
                     return (
                       <div 
                         key={port.id} 
                         style={{ 
-                          background: isOcupado ? "#fff1f2" : isOtro ? "#fefce8" : "#f0fdf4", 
+                          background: isOcupado ? "#fff1f2" : isOtro ? "#fefce8" : isCtr ? "#f0f9ff" : "#f0fdf4", 
                           padding: "10px 12px", 
                           borderRadius: "12px", 
-                          border: isOcupado ? "2px solid #ef4444" : isOtro ? "2px solid #eab308" : isLibre ? "2px solid #22c55e" : "1.5px solid var(--border-color)",
+                          border: isOcupado ? "2px solid #ef4444" : isOtro ? "2px solid #eab308" : isCtr ? "2px solid #0284c7" : isLibre ? "2px solid #22c55e" : "1.5px solid var(--border-color)",
                           display: "flex",
                           flexDirection: "column",
                           gap: "8px",
@@ -2860,7 +2963,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       >
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <span style={{ fontWeight: 900, fontSize: "0.92rem", color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
-                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: isOcupado ? "#ef4444" : isOtro ? "#eab308" : "#22c55e", boxShadow: `0 0 6px ${isOcupado ? "#ef4444" : isOtro ? "#eab308" : "#22c55e"}` }} />
+                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: isOcupado ? "#ef4444" : isOtro ? "#eab308" : isCtr ? "#0284c7" : "#22c55e", boxShadow: `0 0 6px ${isOcupado ? "#ef4444" : isOtro ? "#eab308" : isCtr ? "#0284c7" : "#22c55e"}` }} />
                             Puerto {port.id}
                           </span>
                           <span style={{ 
@@ -2868,22 +2971,21 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                             fontWeight: 800, 
                             padding: "2px 8px", 
                             borderRadius: "12px",
-                            background: isOcupado ? "#fee2e2" : isOtro ? "#fef9c3" : "#dcfce7",
-                            color: isOcupado ? "#991b1b" : isOtro ? "#854d0e" : "#166534",
-                            border: `1px solid ${isOcupado ? "#fca5a5" : isOtro ? "#fef08a" : "#bbf7d0"}`
+                            background: isOcupado ? "#fee2e2" : isOtro ? "#fef9c3" : isCtr ? "#e0f2fe" : "#dcfce7",
+                            color: isOcupado ? "#991b1b" : isOtro ? "#854d0e" : isCtr ? "#0369a1" : "#166534",
+                            border: `1px solid ${isOcupado ? "#fca5a5" : isOtro ? "#fef08a" : isCtr ? "#bae6fd" : "#bbf7d0"}`
                           }}>
-                            {isOcupado ? "OCUPADO" : isOtro ? (port.customNumber ? `#${port.customNumber}` : "OTRO #") : "LIBRE"}
+                            {isOcupado ? "OCUPADO" : isCtr ? "CTR" : isOtro ? (port.customNumber ? `#${port.customNumber}` : "OTRO #") : "LIBRE"}
                           </span>
                         </div>
 
                         {/* Botones de Estado */}
-                        <div style={{ display: "flex", gap: "4px" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
                           {/* Botón LIBRE */}
                           <button
                             type="button"
                             onClick={() => handlePortStatusChange(idx, "LIBRE")}
                             style={{
-                              flex: 1,
                               padding: "6px 2px",
                               fontSize: "0.75rem",
                               fontWeight: 800,
@@ -2904,7 +3006,6 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                             type="button"
                             onClick={() => handlePortStatusChange(idx, "OCUPADO")}
                             style={{
-                              flex: 1,
                               padding: "6px 2px",
                               fontSize: "0.75rem",
                               fontWeight: 800,
@@ -2925,7 +3026,6 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                             type="button"
                             onClick={() => handlePortStatusChange(idx, "OTRO")}
                             style={{
-                              flex: 1,
                               padding: "6px 2px",
                               fontSize: "0.75rem",
                               fontWeight: 800,
@@ -2939,6 +3039,26 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                             }}
                           >
                             Otro #
+                          </button>
+
+                          {/* Botón CTR */}
+                          <button
+                            type="button"
+                            onClick={() => handlePortStatusChange(idx, "CTR")}
+                            style={{
+                              padding: "6px 2px",
+                              fontSize: "0.75rem",
+                              fontWeight: 800,
+                              borderRadius: "8px",
+                              cursor: "pointer",
+                              border: isCtr ? "2px solid #0284c7" : "1px solid #bae6fd",
+                              background: isCtr ? "#0284c7" : "#e0f2fe",
+                              color: isCtr ? "white" : "#0369a1",
+                              boxShadow: isCtr ? "0 2px 6px rgba(2,132,199,0.3)" : "none",
+                              transition: "all 0.15s"
+                            }}
+                          >
+                            CTR
                           </button>
                         </div>
 
@@ -3083,10 +3203,11 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     const isLibre = port.status === "LIBRE";
                     const isOcupado = port.status === "OCUPADO";
                     const isOtro = port.status === "OTRO";
+                    const isCtr = port.status === "CTR";
 
-                    const mainColor = isOcupado ? "#ef4444" : isOtro ? "#eab308" : "#22c55e";
-                    const bgGlow = isOcupado ? "rgba(239, 68, 68, 0.15)" : isOtro ? "rgba(234, 179, 8, 0.15)" : "rgba(34, 197, 94, 0.15)";
-                    const borderCol = isOcupado ? "#ef4444" : isOtro ? "#eab308" : "#22c55e";
+                    const mainColor = isOcupado ? "#ef4444" : isOtro ? "#eab308" : isCtr ? "#0284c7" : "#22c55e";
+                    const bgGlow = isOcupado ? "rgba(239, 68, 68, 0.15)" : isOtro ? "rgba(234, 179, 8, 0.15)" : isCtr ? "rgba(2, 132, 199, 0.15)" : "rgba(34, 197, 94, 0.15)";
+                    const borderCol = isOcupado ? "#ef4444" : isOtro ? "#eab308" : isCtr ? "#0284c7" : "#22c55e";
 
                     return (
                       <div 
@@ -3144,9 +3265,9 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                             maxWidth: "100%",
                             padding: "1px 4px"
                           }}
-                          title={isOtro && port.customNumber ? `Circuito: ${port.customNumber}` : isOcupado ? "Ocupado / No Localizado" : "Libre"}
+                          title={isOtro && port.customNumber ? `Circuito: ${port.customNumber}` : isCtr ? "Control / CTR" : isOcupado ? "Ocupado / No Localizado" : "Libre"}
                         >
-                          {isOcupado ? "OCUPADO" : isOtro ? (port.customNumber ? `#${port.customNumber}` : "OTRO") : "LIBRE"}
+                          {isOcupado ? "OCUPADO" : isCtr ? "CTR" : isOtro ? (port.customNumber ? `#${port.customNumber}` : "OTRO") : "LIBRE"}
                         </span>
                       </div>
                     );
