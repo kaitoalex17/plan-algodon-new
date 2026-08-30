@@ -69,7 +69,7 @@ export const authOptions: NextAuthOptions = {
         return token;
       }
 
-      // Validar si la sesión fue invalidada por el administrador (forzar cierre de sesión)
+      // Validar si la versión del token coincide con la base de datos
       if (token.id) {
         try {
           const dbUser = await prisma.user.findUnique({
@@ -77,27 +77,33 @@ export const authOptions: NextAuthOptions = {
             select: { tokenVersion: true, role: true, color: true }
           });
           
-          if (!dbUser || (dbUser.tokenVersion && token.tokenVersion && dbUser.tokenVersion !== token.tokenVersion)) {
-            return {};
-          }
           if (dbUser) {
+            if (dbUser.tokenVersion && token.tokenVersion && dbUser.tokenVersion !== token.tokenVersion) {
+              return {}; // Sesión invalidada por admin
+            }
             token.role = dbUser.role;
             token.color = dbUser.color;
           }
         } catch (e) {
-          console.error("Error verificando tokenVersion:", e);
+          // Si hay error transitorio de conexión a la BD, no invalidar el token
         }
       }
 
       return token;
     },
     async session({ session, token }) {
-      if (token && token.id) {
+      if (token && token.id && session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
         (session.user as any).color = token.color;
-      } else {
-        return {} as any;
+      } else if (token && token.id && !session.user) {
+        session.user = {
+          id: token.id as string,
+          role: token.role,
+          color: token.color,
+          name: token.name,
+          email: token.email,
+        } as any;
       }
       return session;
     }
