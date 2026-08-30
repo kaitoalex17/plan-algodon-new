@@ -541,10 +541,10 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
           <h1 
             onClick={() => setShowImpactModal(true)}
-            style={{ fontSize: "1.05rem", fontWeight: 700, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", userSelect: "none" }}
+            style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}
             title="Ver estadísticas del proyecto"
           >
-            <span style={{ color: "var(--primary-color)" }}>●</span> Plan Algodón Fase 3
+            <span style={{ color: "var(--primary-color)" }}>●</span> Algodon
           </h1>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
             {/* Botón Refrescar (🔄) */}
