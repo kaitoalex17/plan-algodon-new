@@ -486,12 +486,47 @@ function PhotoGuideContent() {
 
         {/* Acciones de Descarga y Estado */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          {/* Botón Descargar Fotos Antala */}
+          {/* Botón Descargar Fotos Antala directas */}
           <button
             type="button"
-            onClick={() => {
-              if (!ctoId) return;
-              window.open(`/api/admin/evidencia/download-cto?ctoId=${ctoId}&type=antala`, "_blank");
+            onClick={async () => {
+              const antalaImgs = images.filter(img => {
+                const urlLower = (img.url || "").toLowerCase();
+                return urlLower.includes("_entorno") ||
+                       urlLower.includes("_cto_abierta") ||
+                       urlLower.includes("_abierta") ||
+                       urlLower.includes("_etiquetado_cto") ||
+                       urlLower.includes("_etiquetado_cableado") ||
+                       urlLower.includes("_cableado") ||
+                       urlLower.includes("_potencia") ||
+                       urlLower.includes("_mapa_coordenadas");
+              });
+
+              if (antalaImgs.length === 0) {
+                alert("No hay fotos de la categoría Antala para descargar en esta CTO.");
+                return;
+              }
+
+              for (let i = 0; i < antalaImgs.length; i++) {
+                const img = antalaImgs[i];
+                try {
+                  const response = await fetch(img.url);
+                  const blob = await response.blob();
+                  const blobUrl = window.URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.style.display = "none";
+                  a.href = blobUrl;
+                  a.download = img.url.split("/").pop() || `antala_${cto?.num || "cto"}_${i + 1}.jpg`;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(blobUrl);
+                  document.body.removeChild(a);
+                  // Pausa de 250ms entre descargas para evitar bloqueos del navegador
+                  await new Promise(r => setTimeout(r, 250));
+                } catch (e) {
+                  console.error("Error descargando foto:", img.url, e);
+                }
+              }
             }}
             style={{
               background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
@@ -507,17 +542,53 @@ function PhotoGuideContent() {
               gap: "5px",
               boxShadow: "0 2px 6px rgba(139, 92, 246, 0.3)"
             }}
-            title="Descargar fotos de Entorno, Abierta, Etiquetado, Cableado, Potencia y Coordenadas"
+            title="Descarga todas las fotos de Antala directamente a tu dispositivo (archivos .jpg sueltos)"
           >
-            <span>📦</span> Antala (.zip)
+            <span>📦</span> Descargar Antala
           </button>
 
-          {/* Botón Descargar Otras Fotos */}
+          {/* Botón Descargar Otras Fotos directas */}
           <button
             type="button"
-            onClick={() => {
-              if (!ctoId) return;
-              window.open(`/api/admin/evidencia/download-cto?ctoId=${ctoId}&type=otros`, "_blank");
+            onClick={async () => {
+              const otrasImgs = images.filter(img => {
+                const urlLower = (img.url || "").toLowerCase();
+                const isAntala = urlLower.includes("_entorno") ||
+                                 urlLower.includes("_cto_abierta") ||
+                                 urlLower.includes("_abierta") ||
+                                 urlLower.includes("_etiquetado_cto") ||
+                                 urlLower.includes("_etiquetado_cableado") ||
+                                 urlLower.includes("_cableado") ||
+                                 urlLower.includes("_potencia") ||
+                                 urlLower.includes("_mapa_coordenadas");
+                return !isAntala;
+              });
+
+              if (otrasImgs.length === 0) {
+                alert("No hay fotos en 'Otras imágenes' para descargar en esta CTO.");
+                return;
+              }
+
+              for (let i = 0; i < otrasImgs.length; i++) {
+                const img = otrasImgs[i];
+                try {
+                  const response = await fetch(img.url);
+                  const blob = await response.blob();
+                  const blobUrl = window.URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.style.display = "none";
+                  a.href = blobUrl;
+                  a.download = img.url.split("/").pop() || `otras_${cto?.num || "cto"}_${i + 1}.jpg`;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(blobUrl);
+                  document.body.removeChild(a);
+                  // Pausa de 250ms entre descargas para evitar bloqueos del navegador
+                  await new Promise(r => setTimeout(r, 250));
+                } catch (e) {
+                  console.error("Error descargando foto:", img.url, e);
+                }
+              }
             }}
             style={{
               background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
@@ -533,9 +604,9 @@ function PhotoGuideContent() {
               gap: "5px",
               boxShadow: "0 2px 6px rgba(5, 150, 105, 0.3)"
             }}
-            title="Descargar únicamente fotos complementarias de la sección 'Otras imágenes'"
+            title="Descarga todas las fotos de 'Otras imágenes' directamente a tu dispositivo (archivos .jpg sueltos)"
           >
-            <span>📁</span> Otras fotos (.zip)
+            <span>📁</span> Descargar Otras fotos
           </button>
 
           {/* Indicador de subidas en cola */}
