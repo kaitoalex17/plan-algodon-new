@@ -35,12 +35,37 @@ export default function LoginPage() {
         
         <div style={{ marginBottom: '1.25rem' }}>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#475569', fontSize: '0.9rem' }}>Correo Electrónico</label>
-          <input type="email" required className="input-field" placeholder="admin@ejemplo.com" value={email} onChange={e => setEmail(e.target.value)} />
+          <input 
+            type="email" 
+            name="email"
+            id="email"
+            autoComplete="username email" 
+            autoCapitalize="none"
+            required 
+            className="input-field" 
+            placeholder="admin@algodon.xyz" 
+            value={email} 
+            onChange={e => setEmail(e.target.value)} 
+          />
         </div>
         
-        <div style={{ marginBottom: '2rem' }}>
+        <div style={{ marginBottom: '1.5rem' }}>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#475569', fontSize: '0.9rem' }}>Contraseña</label>
-          <input type="password" required className="input-field" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
+          <input 
+            type="password" 
+            name="password"
+            id="password"
+            autoComplete="current-password" 
+            required 
+            className="input-field" 
+            placeholder="••••••••" 
+            value={password} 
+            onChange={e => setPassword(e.target.value)} 
+          />
+        </div>
+
+        <div style={{ marginBottom: '1.5rem', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', padding: '10px', fontSize: '0.78rem', color: '#64748b', textAlign: 'center' }}>
+          <span>Credenciales iniciales: <strong>admin@algodon.xyz</strong> / <strong>AlgodonAdmin2026</strong></span>
         </div>
         
         <button type="submit" className="btn btn-primary" style={{ width: '100%', fontSize: '1.1rem', padding: '0.85rem' }}>Ingresar</button>
