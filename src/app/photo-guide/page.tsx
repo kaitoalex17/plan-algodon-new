@@ -60,15 +60,89 @@ const getPendingUploadsForCto = async (ctoId: string): Promise<any[]> => {
   });
 };
 
-// Categorías de fotos guiadas
+// Categorías de fotos guiadas con iconos SVG profesionales
 const PHOTO_CATEGORIES = [
-  { key: "entorno", title: "Foto entorno", desc: "Vista general del exterior y ubicación", icon: "🏠" },
-  { key: "cto_abierta", title: "CTO abierta", desc: "Interior de la caja y bandejas de fibra", icon: "📦" },
-  { key: "etiquetado_cto", title: "Etiquetado CTO", desc: "Etiqueta identificativa de la CTO", icon: "🏷️" },
-  { key: "etiquetado_cableado", title: "Etiquetado cableado", desc: "Etiquetas de mangueras y cables", icon: "🔌" },
-  { key: "potencia", title: "Medición potencia", desc: "Pantalla del medidor óptico / VFL", icon: "⚡" },
-  { key: "mapa_coordenadas", title: "Imagen coordenadas mapa", desc: "Posición satelital exacta", icon: "🗺️", isMap: true },
-  { key: "otras", title: "Otras imágenes", desc: "Evidencias o detalles adicionales", icon: "📷", isOther: true },
+  { 
+    key: "entorno", 
+    title: "Foto entorno", 
+    desc: "Vista general del exterior y ubicación", 
+    iconSvg: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+        <polyline points="9 22 9 12 15 12 15 22" />
+      </svg>
+    )
+  },
+  { 
+    key: "cto_abierta", 
+    title: "CTO abierta", 
+    desc: "Interior de la caja y bandejas de fibra", 
+    iconSvg: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+        <line x1="12" y1="22.08" x2="12" y2="12" />
+      </svg>
+    )
+  },
+  { 
+    key: "etiquetado_cto", 
+    title: "Etiquetado CTO", 
+    desc: "Etiqueta identificativa de la CTO", 
+    iconSvg: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+        <line x1="7" y1="7" x2="7.01" y2="7" />
+      </svg>
+    )
+  },
+  { 
+    key: "etiquetado_cableado", 
+    title: "Etiquetado cableado", 
+    desc: "Etiquetas de mangueras y cables", 
+    iconSvg: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2v8M18 2v4M6 2v4" />
+        <rect x="4" y="10" width="16" height="8" rx="2" />
+        <path d="M12 18v4" />
+      </svg>
+    )
+  },
+  { 
+    key: "potencia", 
+    title: "Medición potencia", 
+    desc: "Pantalla del medidor óptico / VFL", 
+    iconSvg: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+    )
+  },
+  { 
+    key: "mapa_coordenadas", 
+    title: "Imagen coordenadas mapa", 
+    desc: "Posición satelital exacta", 
+    isMap: true,
+    iconSvg: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+        <line x1="8" y1="2" x2="8" y2="18" />
+        <line x1="16" y1="6" x2="16" y2="22" />
+      </svg>
+    )
+  },
+  { 
+    key: "otras", 
+    title: "Otras imágenes", 
+    desc: "Evidencias o detalles adicionales", 
+    isOther: true,
+    iconSvg: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+        <circle cx="12" cy="13" r="4" />
+      </svg>
+    )
+  },
 ];
 
 export default function PhotoGuidePage() {
@@ -104,16 +178,29 @@ function PhotoGuideContent() {
   // Visor Lightbox para fotos
   const [viewerImgUrl, setViewerImgUrl] = useState<string | null>(null);
 
-  // Cargar configuración de compresión
+  // Cargar configuración de compresión y tema de usuario
   useEffect(() => {
     fetch("/api/upload/config")
-      .then(res => res.json())
-      .then(data => {
+      .then((r) => r.json())
+      .then((data) => {
         if (data) {
           setUploadConfig({
             imageQuality: data.imageQuality || 80,
             imageMaxWidth: data.imageMaxWidth || 1600
           });
+        }
+      })
+      .catch(() => {});
+
+    // Cargar y aplicar tema del usuario
+    fetch("/api/users/map-state")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.theme) {
+          document.body.classList.forEach(cls => {
+            if (cls.startsWith("theme-")) document.body.classList.remove(cls);
+          });
+          document.body.classList.add(`theme-${data.theme}`);
         }
       })
       .catch(() => {});
@@ -464,21 +551,21 @@ function PhotoGuideContent() {
     <div style={{ minHeight: "100vh", background: "var(--bg-color, #090d16)", color: "var(--text-color, #f8fafc)", display: "flex", flexDirection: "column" }}>
       
       {/* Header Fijo */}
-      <header style={{ position: "sticky", top: 0, zIndex: 50, background: "var(--card-bg, #0f172a)", borderBottom: "1px solid var(--border-color, #334155)", padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
+      <header style={{ position: "sticky", top: 0, zIndex: 50, background: "var(--card-bg)", borderBottom: "1px solid var(--border-color)", padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <button
             type="button"
             onClick={() => window.close()}
-            style={{ background: "var(--border-color, #334155)", border: "none", color: "white", borderRadius: "8px", width: "36px", height: "36px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", fontWeight: 800 }}
+            style={{ background: "var(--bg-color)", border: "1px solid var(--border-color)", color: "var(--text-color)", borderRadius: "8px", width: "36px", height: "36px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", fontWeight: 800 }}
             title="Volver"
           >
             ✕
           </button>
           <div>
-            <h1 style={{ fontSize: "1.1rem", fontWeight: 900, margin: 0, color: "var(--text-color, white)", display: "flex", alignItems: "center", gap: "8px" }}>
-              <span>📸</span> Guía Fotográfica — CTO {cto?.num || "..."}
+            <h1 style={{ fontSize: "1.05rem", fontWeight: 800, margin: 0, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ color: "var(--primary-color)" }}>●</span> Guía Fotográfica — CTO {cto?.num || "..."}
             </h1>
-            <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+            <span style={{ fontSize: "0.75rem", opacity: 0.7 }}>
               Captura continua de evidencias con cola automática
             </span>
           </div>
@@ -521,7 +608,6 @@ function PhotoGuideContent() {
                   a.click();
                   window.URL.revokeObjectURL(blobUrl);
                   document.body.removeChild(a);
-                  // Pausa de 250ms entre descargas para evitar bloqueos del navegador
                   await new Promise(r => setTimeout(r, 250));
                 } catch (e) {
                   console.error("Error descargando foto:", img.url, e);
@@ -539,12 +625,17 @@ function PhotoGuideContent() {
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: "5px",
+              gap: "6px",
               boxShadow: "0 2px 6px rgba(139, 92, 246, 0.3)"
             }}
             title="Descarga todas las fotos de Antala directamente a tu dispositivo (archivos .jpg sueltos)"
           >
-            <span>📦</span> Descargar Antala
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>Descargar Antala</span>
           </button>
 
           {/* Botón Descargar Otras Fotos directas */}
@@ -583,7 +674,6 @@ function PhotoGuideContent() {
                   a.click();
                   window.URL.revokeObjectURL(blobUrl);
                   document.body.removeChild(a);
-                  // Pausa de 250ms entre descargas para evitar bloqueos del navegador
                   await new Promise(r => setTimeout(r, 250));
                 } catch (e) {
                   console.error("Error descargando foto:", img.url, e);
@@ -601,12 +691,15 @@ function PhotoGuideContent() {
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: "5px",
+              gap: "6px",
               boxShadow: "0 2px 6px rgba(5, 150, 105, 0.3)"
             }}
             title="Descarga todas las fotos de 'Otras imágenes' directamente a tu dispositivo (archivos .jpg sueltos)"
           >
-            <span>📁</span> Descargar Otras fotos
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            <span>Descargar Otras fotos</span>
           </button>
 
           {/* Indicador de subidas en cola */}
@@ -625,16 +718,20 @@ function PhotoGuideContent() {
       <main style={{ flex: 1, padding: "16px", maxWidth: "900px", width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: "16px" }}>
         
         {/* Banner de Ayuda */}
-        <div style={{ background: "rgba(59, 130, 246, 0.1)", border: "1.5px solid #3b82f6", borderRadius: "12px", padding: "12px 16px", display: "flex", alignItems: "center", gap: "12px" }}>
-          <span style={{ fontSize: "1.6rem" }}>⚡</span>
-          <div style={{ flex: 1, fontSize: "0.82rem", color: "#bfdbfe" }}>
+        <div style={{ background: "rgba(59, 130, 246, 0.08)", border: "1.5px solid rgba(59, 130, 246, 0.3)", borderRadius: "12px", padding: "12px 16px", display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(59, 130, 246, 0.15)", display: "flex", alignItems: "center", justifyContent: "center", color: "#3b82f6", flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+          </div>
+          <div style={{ flex: 1, fontSize: "0.82rem", color: "var(--text-color)", opacity: 0.9 }}>
             <strong>Subida rápida y fluida:</strong> Toma tantas fotos como necesites de cada apartado. Las fotos se optimizan y suben automáticamente en segundo plano sin interrumpirte.
           </div>
         </div>
 
         {/* Cola de Subida Pendiente (si existe) */}
         {pendingUploads.length > 0 && (
-          <div style={{ background: "var(--card-bg, #0f172a)", border: "1px dashed #f59e0b", borderRadius: "12px", padding: "12px 16px" }}>
+          <div style={{ background: "var(--card-bg)", border: "1px dashed #f59e0b", borderRadius: "12px", padding: "12px 16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <span style={{ fontSize: "0.82rem", fontWeight: 800, color: "#f59e0b", display: "flex", alignItems: "center", gap: "6px" }}>
                 <span>⏳</span> Fotos pendientes de sincronizar ({pendingUploads.length})
@@ -642,16 +739,16 @@ function PhotoGuideContent() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {pendingUploads.map((item) => (
-                <div key={item.fileId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-color, #020617)", padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--border-color, #334155)" }}>
+                <div key={item.fileId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-color)", padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontSize: "0.75rem", fontFamily: "monospace", color: "#e2e8f0" }}>{item.fileName}</span>
-                    <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>({(item.blob.size / 1024).toFixed(0)} KB)</span>
+                    <span style={{ fontSize: "0.75rem", fontFamily: "monospace", color: "var(--text-color)" }}>{item.fileName}</span>
+                    <span style={{ fontSize: "0.68rem", opacity: 0.6 }}>({(item.blob.size / 1024).toFixed(0)} KB)</span>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button
                       type="button"
                       onClick={() => handleRetryPending(item)}
-                      style={{ padding: "3px 8px", fontSize: "0.72rem", background: "var(--primary-color, #FF7900)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 700 }}
+                      style={{ padding: "3px 8px", fontSize: "0.72rem", background: "var(--primary-color)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 700 }}
                     >
                       Subir
                     </button>
@@ -680,11 +777,11 @@ function PhotoGuideContent() {
               <div 
                 key={cat.key}
                 style={{ 
-                  background: "var(--card-bg, #0f172a)", 
-                  border: hasPhotos ? "1.5px solid #10b981" : "1.5px solid var(--border-color, #334155)", 
+                  background: "var(--card-bg)", 
+                  border: hasPhotos ? "1.5px solid #10b981" : "1px solid var(--border-color)", 
                   borderRadius: "14px", 
                   padding: "16px",
-                  boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
                   display: "flex",
                   flexDirection: "column",
                   gap: "12px"
@@ -692,24 +789,35 @@ function PhotoGuideContent() {
               >
                 {/* Cabecera del bloque */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontSize: "1.4rem" }}>{cat.icon}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{ 
+                      width: "38px", 
+                      height: "38px", 
+                      borderRadius: "10px", 
+                      background: hasPhotos ? "rgba(16, 185, 129, 0.12)" : "rgba(255, 121, 0, 0.1)", 
+                      color: hasPhotos ? "#10b981" : "var(--primary-color)", 
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "center" 
+                    }}>
+                      {cat.iconSvg}
+                    </div>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <h2 style={{ fontSize: "0.95rem", fontWeight: 800, margin: 0, color: "var(--text-color, white)" }}>
+                        <h2 style={{ fontSize: "0.95rem", fontWeight: 800, margin: 0, color: "var(--text-color)" }}>
                           {cat.title}
                         </h2>
                         {hasPhotos ? (
-                          <span style={{ fontSize: "0.7rem", fontWeight: 800, padding: "2px 6px", borderRadius: "10px", background: "#dcfce7", color: "#166534" }}>
+                          <span style={{ fontSize: "0.7rem", fontWeight: 800, padding: "2px 8px", borderRadius: "10px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981" }}>
                             ✓ {catImages.length} foto(s)
                           </span>
                         ) : (
-                          <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 6px", borderRadius: "10px", background: "rgba(239, 68, 68, 0.15)", color: "#ef4444" }}>
+                          <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 8px", borderRadius: "10px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444" }}>
                             Pendiente
                           </span>
                         )}
                       </div>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{cat.desc}</span>
+                      <span style={{ fontSize: "0.75rem", opacity: 0.65 }}>{cat.desc}</span>
                     </div>
                   </div>
 
@@ -720,7 +828,7 @@ function PhotoGuideContent() {
                         type="button"
                         onClick={() => setShowMapPinModal(true)}
                         style={{
-                          background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                          background: "var(--primary-color)",
                           color: "white",
                           border: "none",
                           borderRadius: "8px",
@@ -731,32 +839,41 @@ function PhotoGuideContent() {
                           display: "flex",
                           alignItems: "center",
                           gap: "6px",
-                          boxShadow: "0 2px 6px rgba(2, 132, 199, 0.3)"
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.15)"
                         }}
                       >
-                        <span>🗺️</span> Ajustar Coordenadas y Capturar
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                          <line x1="8" y1="2" x2="8" y2="18" />
+                          <line x1="16" y1="6" x2="16" y2="22" />
+                        </svg>
+                        <span>Ajustar Coordenadas y Capturar</span>
                       </button>
                     ) : (
                       <>
                         {/* Botón Cámara Directa */}
                         <label
                           style={{
-                            background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                            background: "var(--primary-color)",
                             color: "white",
                             border: "none",
                             borderRadius: "8px",
-                            padding: "8px 12px",
+                            padding: "8px 14px",
                             fontWeight: 800,
                             fontSize: "0.82rem",
                             cursor: isUploading ? "wait" : "pointer",
                             display: "inline-flex",
                             alignItems: "center",
                             gap: "6px",
-                            boxShadow: "0 2px 6px rgba(2, 132, 199, 0.3)",
+                            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
                             opacity: isUploading ? 0.6 : 1
                           }}
                         >
-                          <span>📷</span> {isUploading ? "Cargando..." : "Cámara"}
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                            <circle cx="12" cy="13" r="4" />
+                          </svg>
+                          <span>{isUploading ? "Cargando..." : "Cámara"}</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -775,11 +892,11 @@ function PhotoGuideContent() {
                         {/* Botón Galería / Archivo */}
                         <label
                           style={{
-                            background: "var(--border-color, #334155)",
-                            color: "white",
-                            border: "none",
+                            background: "var(--bg-color)",
+                            color: "var(--text-color)",
+                            border: "1px solid var(--border-color)",
                             borderRadius: "8px",
-                            padding: "8px 12px",
+                            padding: "8px 14px",
                             fontWeight: 800,
                             fontSize: "0.82rem",
                             cursor: isUploading ? "wait" : "pointer",
@@ -789,7 +906,12 @@ function PhotoGuideContent() {
                             opacity: isUploading ? 0.6 : 1
                           }}
                         >
-                          <span>📁</span> Subir
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                          </svg>
+                          <span>Subir</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -813,7 +935,7 @@ function PhotoGuideContent() {
 
                 {/* Lista de Fotos Subidas en esta categoría */}
                 {catImages.length > 0 && (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: "10px", borderTop: "1px solid var(--border-color, #1e293b)", paddingTop: "10px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: "10px", borderTop: "1px solid var(--border-color)", paddingTop: "10px" }}>
                     {catImages.map((img, idx) => (
                       <div 
                         key={img.id || idx}
@@ -823,9 +945,9 @@ function PhotoGuideContent() {
                           aspectRatio: "1/1",
                           borderRadius: "8px",
                           overflow: "hidden",
-                          border: "1.5px solid var(--border-color, #334155)",
+                          border: "1.5px solid var(--border-color)",
                           cursor: "pointer",
-                          background: "#020617"
+                          background: "var(--bg-color)"
                         }}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
