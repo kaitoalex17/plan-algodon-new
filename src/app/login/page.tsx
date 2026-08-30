@@ -63,10 +63,6 @@ export default function LoginPage() {
             onChange={e => setPassword(e.target.value)} 
           />
         </div>
-
-        <div style={{ marginBottom: '1.5rem', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', padding: '10px', fontSize: '0.78rem', color: '#64748b', textAlign: 'center' }}>
-          <span>Credenciales iniciales: <strong>admin@algodon.xyz</strong> / <strong>AlgodonAdmin2026</strong></span>
-        </div>
         
         <button type="submit" className="btn btn-primary" style={{ width: '100%', fontSize: '1.1rem', padding: '0.85rem' }}>Ingresar</button>
       </form>

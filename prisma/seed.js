@@ -9,26 +9,26 @@ async function main() {
   // Verificar si ya existen usuarios
   const userCount = await prisma.user.count();
 
-  if (userCount === 0) {
-    console.log("No se encontraron usuarios. Creando administrador por defecto...");
-    
-    // Hash de la contraseña "AlgodonAdmin2026"
-    const hashedPassword = await bcrypt.hash("AlgodonAdmin2026", 10);
+  // Crear o actualizar usuario administrador por defecto
+  console.log("Sincronizando usuario administrador por defecto...");
+  const hashedPassword = await bcrypt.hash("AlgodonAdmin2026", 10);
 
-    const admin = await prisma.user.create({
-      data: {
-        name: "Administrador",
-        email: "admin@algodon.xyz",
-        password: hashedPassword,
-        role: "ADMIN",
-        color: "#FF7900", // Naranja corporativo
-      },
-    });
+  const admin = await prisma.user.upsert({
+    where: { email: "admin@algodon.xyz" },
+    update: {
+      password: hashedPassword,
+      role: "ADMIN",
+    },
+    create: {
+      name: "Administrador",
+      email: "admin@algodon.xyz",
+      password: hashedPassword,
+      role: "ADMIN",
+      color: "#FF7900",
+    },
+  });
 
-    console.log(`Usuario administrador creado con éxito: ${admin.email}`);
-  } else {
-    console.log(`La base de datos ya contiene ${userCount} usuario(s). Se omite la creación del usuario por defecto.`);
-  }
+  console.log(`Usuario administrador verificado con éxito: ${admin.email}`);
 
   // Verificar si existen sub-estados por defecto
   const subStatusCount = await prisma.subStatus.count({ where: { category: "AUDITORIA" } });
