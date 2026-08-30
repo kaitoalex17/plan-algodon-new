@@ -16,10 +16,13 @@ export async function GET() {
       return acc;
     }, {} as Record<string, string>);
 
-    // Devolver valores con fallback a WhatsApp HD (80% calidad, 1600px lado máximo)
+    // Devolver valores de configuración global y SFTP
     return NextResponse.json({
       imageQuality: settingsMap.imageQuality || "80",
       imageMaxWidth: settingsMap.imageMaxWidth || "1600",
+      sftpUser: settingsMap.sftpUser || process.env.SFTP_USER || "sftpuser",
+      sftpPassword: settingsMap.sftpPassword || process.env.SFTP_PASSWORD || "sftppassword123",
+      sftpPort: settingsMap.sftpPort || process.env.SFTP_PORT || "2222",
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -34,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { imageQuality, imageMaxWidth } = body;
+    const { imageQuality, imageMaxWidth, sftpUser, sftpPassword, sftpPort } = body;
 
     if (imageQuality !== undefined) {
       await prisma.setting.upsert({
@@ -49,6 +52,30 @@ export async function POST(req: NextRequest) {
         where: { key: "imageMaxWidth" },
         update: { value: String(imageMaxWidth) },
         create: { key: "imageMaxWidth", value: String(imageMaxWidth) }
+      });
+    }
+
+    if (sftpUser !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: "sftpUser" },
+        update: { value: String(sftpUser) },
+        create: { key: "sftpUser", value: String(sftpUser) }
+      });
+    }
+
+    if (sftpPassword !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: "sftpPassword" },
+        update: { value: String(sftpPassword) },
+        create: { key: "sftpPassword", value: String(sftpPassword) }
+      });
+    }
+
+    if (sftpPort !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: "sftpPort" },
+        update: { value: String(sftpPort) },
+        create: { key: "sftpPort", value: String(sftpPort) }
       });
     }
 

@@ -13,6 +13,12 @@ export default function AdminSettingsPage() {
   const [imageQuality, setImageQuality] = useState(80);
   const [imageMaxWidth, setImageMaxWidth] = useState(1600);
 
+  // Settings State: SFTP
+  const [sftpUser, setSftpUser] = useState("sftpuser");
+  const [sftpPassword, setSftpPassword] = useState("sftppassword123");
+  const [sftpPort, setSftpPort] = useState("2222");
+  const [savingSftp, setSavingSftp] = useState(false);
+
   // Settings State: Mail
   const [smtpHost, setSmtpHost] = useState("");
   const [smtpPort, setSmtpPort] = useState("587");
@@ -71,6 +77,9 @@ export default function AdminSettingsPage() {
         const settings = await resCompression.json();
         setImageQuality(parseInt(settings.imageQuality) || 80);
         setImageMaxWidth(parseInt(settings.imageMaxWidth) || 1600);
+        if (settings.sftpUser) setSftpUser(settings.sftpUser);
+        if (settings.sftpPassword) setSftpPassword(settings.sftpPassword);
+        if (settings.sftpPort) setSftpPort(settings.sftpPort);
       }
 
       if (resMail.ok) {
@@ -130,6 +139,28 @@ export default function AdminSettingsPage() {
       alert("Error en el servidor al guardar compresión.");
     } finally {
       setSavingCompression(false);
+    }
+  };
+
+  const handleSaveSftp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSftp(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sftpUser, sftpPassword, sftpPort })
+      });
+      if (res.ok) {
+        alert("Credenciales y accesos de SFTP guardados correctamente.");
+      } else {
+        alert("Error al guardar los ajustes de SFTP.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error en el servidor al guardar ajustes de SFTP.");
+    } finally {
+      setSavingSftp(false);
     }
   };
 
@@ -406,7 +437,85 @@ export default function AdminSettingsPage() {
           </form>
         </div>
 
-        {/* 2. ENLACE PÚBLICO DE ACCESO DIRECTO */}
+        {/* 2. AJUSTES DE ACCESO SFTP (CARPETAS Y FOTOS) */}
+        <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1.5px solid #0284c7", borderRadius: "12px", boxShadow: "0 4px 12px rgba(2,132,199,0.1)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "1rem" }}>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>📁</span> Accesos y Servidor SFTP (Descarga de Fotos)
+            </h2>
+            <span style={{ fontSize: "0.72rem", background: "rgba(2,132,199,0.15)", color: "#0284c7", border: "1px solid #0284c7", padding: "2px 8px", borderRadius: "12px", fontWeight: 800 }}>
+              Puerto {sftpPort}
+            </span>
+          </div>
+
+          <p style={{ fontSize: "0.82rem", color: "#94a3b8", marginBottom: "1.25rem" }}>
+            Configura las credenciales de conexión para descargar cómodamente las carpetas independientes de CTOs y fechas por SFTP (FileZilla / WinSCP).
+          </p>
+
+          <form onSubmit={handleSaveSftp} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
+            <div>
+              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 600 }}>
+                Usuario SFTP:
+              </label>
+              <input 
+                type="text" 
+                className="input-field" 
+                value={sftpUser} 
+                onChange={(e) => setSftpUser(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", minHeight: "38px", background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", borderRadius: "6px", fontWeight: 700 }}
+                placeholder="sftpuser"
+                required
+              />
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 600 }}>
+                Contraseña SFTP:
+              </label>
+              <input 
+                type="text" 
+                className="input-field" 
+                value={sftpPassword} 
+                onChange={(e) => setSftpPassword(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", minHeight: "38px", background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", borderRadius: "6px", fontWeight: 700 }}
+                placeholder="sftppassword123"
+                required
+              />
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 600 }}>
+                Puerto SFTP:
+              </label>
+              <input 
+                type="number" 
+                className="input-field" 
+                value={sftpPort} 
+                onChange={(e) => setSftpPort(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", minHeight: "38px", background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", borderRadius: "6px", fontWeight: 700 }}
+                placeholder="2222"
+                required
+              />
+            </div>
+
+            <div style={{ gridColumn: "span 3", background: "rgba(2,132,199,0.06)", border: "1px dashed #0284c7", borderRadius: "8px", padding: "10px 14px", fontSize: "0.8rem", color: "#38bdf8" }}>
+              <strong>Guía de conexión:</strong> Servidor: <code>IP_DE_TU_SERVER</code> | Puerto: <code>{sftpPort}</code> | Protocolo: <code>SFTP</code> | Directorio remoto: <code>/upload</code>
+            </div>
+
+            <div style={{ gridColumn: "span 3" }}>
+              <button 
+                type="submit" 
+                className="btn" 
+                style={{ background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", color: "white", minHeight: "40px", padding: "6px 20px", fontWeight: 800, cursor: "pointer", border: "none", borderRadius: "8px", boxShadow: "0 2px 8px rgba(2,132,199,0.3)" }}
+                disabled={savingSftp}
+              >
+                {savingSftp ? "Guardando..." : "💾 Guardar Accesos SFTP"}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* 3. ENLACE PÚBLICO DE ACCESO DIRECTO */}
         <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px" }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
             🔗 Enlace Público de Acceso Directo
