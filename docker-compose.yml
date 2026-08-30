@@ -30,16 +30,16 @@ services:
     depends_on:
       - db
 
-  # SERVIDOR SFTP DIRECTO A LA CARPETA DE UPLOADS
+  # SERVIDOR SFTP DIRECTO A LA CARPETA DE UPLOADS (CONFIGURABLE)
   sftp:
     image: atmoz/sftp:latest
     container_name: cto-tracker-fase3-sftp
     restart: unless-stopped
     ports:
-      - "2222:22"
-    command: sftpuser:sftppassword:1001::upload
+      - "${SFTP_PORT:-2222}:22"
+    command: ${SFTP_USER:-sftpuser}:${SFTP_PASSWORD:-sftppassword123}:1001::upload
     volumes:
-      - cto_uploads_fase3:/home/sftpuser/upload
+      - cto_uploads_fase3:/home/${SFTP_USER:-sftpuser}/upload
 
 volumes:
   cto_pgdata_fase3:

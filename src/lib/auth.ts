@@ -33,6 +33,16 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Contraseña incorrecta");
         }
 
+        // Registrar timestamp de última conexión del usuario
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { lastLogin: new Date() }
+          });
+        } catch (e) {
+          console.error("Error al actualizar lastLogin:", e);
+        }
+
         return user;
       }
     })

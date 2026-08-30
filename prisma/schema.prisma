@@ -17,6 +17,7 @@ model User {
   password      String?
   role          String    @default("USER") // ADMIN or USER
   color         String    @default("#000000")
+  lastLogin     DateTime?
   lastLat       Float?
   lastLng       Float?
   lastZoom      Int?

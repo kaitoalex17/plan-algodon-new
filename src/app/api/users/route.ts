@@ -18,6 +18,7 @@ export async function GET() {
       email: true,
       role: true,
       color: true,
+      lastLogin: true,
       _count: { select: { assignedCTOs: true } },
     },
     orderBy: { name: "asc" },

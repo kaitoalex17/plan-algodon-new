@@ -15,6 +15,7 @@ type User = {
   email: string;
   role: string;
   color: string;
+  lastLogin?: string | null;
   _count?: { assignedCTOs: number };
 };
 
@@ -67,15 +68,15 @@ export default function UsersPage() {
     setError("");
 
     const url = editingUser ? `/api/users/${editingUser.id}` : "/api/users";
-    const method = editingUser ? "PATCH" : "POST";
+    const method = editingUser ? "PUT" : "POST";
 
-    const body: any = { name: form.name, email: form.email, role: form.role, color: form.color };
-    if (form.password) body.password = form.password;
+    const payload: any = { name: form.name, email: form.email, role: form.role, color: form.color };
+    if (form.password) payload.password = form.password;
 
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
 
     if (res.ok) {
@@ -102,13 +103,13 @@ export default function UsersPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f3f4f6", padding: "1.5rem" }}>
-      <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+      <div style={{ maxWidth: "980px", margin: "0 auto" }}>
         
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
           <div>
             <h1 style={{ fontSize: "1.8rem", fontWeight: 700, color: "#111827" }}>Gestión de Usuarios</h1>
-            <p style={{ color: "#6b7280", marginTop: "0.25rem" }}>Administra los técnicos y administradores del sistema</p>
+            <p style={{ color: "#6b7280", marginTop: "0.25rem" }}>Control de accesos, roles y última conexión de técnicos</p>
           </div>
           <div style={{ display: "flex", gap: "0.75rem" }}>
             <Link href="/admin" className="btn" style={{ background: "#e5e7eb", color: "#374151", minHeight: "44px", padding: "0.6rem 1.2rem", fontSize: "0.9rem" }}>
@@ -139,6 +140,7 @@ export default function UsersPage() {
                       <th style={{ padding: "1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Nombre</th>
                       <th style={{ padding: "1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Email</th>
                       <th style={{ padding: "1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Rol</th>
+                      <th style={{ padding: "1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Última Conexión</th>
                       <th style={{ padding: "1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>CTOs asignadas</th>
                       <th style={{ padding: "1rem", textAlign: "center", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Acciones</th>
                     </tr>
@@ -159,6 +161,23 @@ export default function UsersPage() {
                           }}>
                             {user.role === "ADMIN" ? "Administrador" : user.role === "GESTOR" ? "Gestor" : "Técnico"}
                           </span>
+                        </td>
+                        <td style={{ padding: "1rem" }}>
+                          {user.lastLogin ? (
+                            <div style={{ display: "flex", flexDirection: "column" }}>
+                              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#10b981" }} />
+                                {new Date(user.lastLogin).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                              </span>
+                              <span style={{ fontSize: "0.74rem", color: "#64748b" }}>
+                                {new Date(user.lastLogin).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: "0.78rem", color: "#9ca3af", fontStyle: "italic" }}>
+                              Nunca conectado
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: "1rem", color: "#374151", fontWeight: 600 }}>
                           {user._count?.assignedCTOs ?? 0}
