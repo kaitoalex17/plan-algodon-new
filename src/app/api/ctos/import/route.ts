@@ -135,6 +135,7 @@ export async function POST(req: Request) {
         category: activeCategory,
         zona: row.zona ? decodeHtml(String(row.zona)) : null,
         cluster: row.cluster ? decodeHtml(String(row.cluster)) : null,
+        olt: (row.olt || row.nombre_olt || row['nombre olt']) ? decodeHtml(String(row.olt || row.nombre_olt || row['nombre olt'])).trim() : null,
         subStatusId: subStatusId
       });
     }

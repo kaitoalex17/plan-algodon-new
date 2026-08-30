@@ -448,6 +448,7 @@ export default function AdminCtosPage() {
                     <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>Número</th>
                     <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>Nº Nuevo</th>
                     <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>Municipio</th>
+                    <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>OLT</th>
                     <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>Colocación</th>
                     <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>Coordenadas</th>
                     <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "0.8rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>Estado</th>
@@ -477,6 +478,7 @@ export default function AdminCtosPage() {
                         <td style={{ padding: "12px 16px", fontWeight: 700 }}>{cto.num}</td>
                         <td style={{ padding: "12px 16px", color: "#64748b" }}>{cto.numeroNuevo || "-"}</td>
                         <td style={{ padding: "12px 16px", color: "#374151" }}>{cto.municipio || "-"}</td>
+                        <td style={{ padding: "12px 16px", fontWeight: 600, color: "var(--primary-color, #FF7900)" }}>{(cto as any).olt || "-"}</td>
                         <td style={{ padding: "12px 16px", color: "#374151" }}>{cto.colocacion || "-"}</td>
                         <td style={{ padding: "12px 16px", fontSize: "0.85rem", color: "#64748b" }}>{cto.lat.toFixed(6)}, {cto.lng.toFixed(6)}</td>
                         <td style={{ padding: "12px 16px" }}>

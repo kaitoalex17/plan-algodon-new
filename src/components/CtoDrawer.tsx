@@ -1164,6 +1164,9 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Colocación:</strong> {cto.colocacion || "N/A"}</p>
               <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Zona:</strong> {cto.zona || "N/A"}</p>
               <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Cluster:</strong> {cto.cluster || "N/A"}</p>
+              {cto.olt && (
+                <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>OLT:</strong> <span style={{ color: "var(--primary-color)", fontWeight: 700 }}>{cto.olt}</span></p>
+              )}
               <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Coordenadas:</strong> {cto.lat.toFixed(6)}, {cto.lng.toFixed(6)}</p>
 
               {/* Información de Primer Auditor y Reparador */}

@@ -91,6 +91,7 @@ model CTO {
   createdInField Boolean   @default(false)
   zona           String?
   cluster        String?
+  olt            String?
   
   // Datos específicos de auditoría de fibra
   puertosTotal      Int?      @default(16)

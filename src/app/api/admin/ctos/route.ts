@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
         { numeroNuevo: { contains: search, mode: "insensitive" } },
         { municipio: { contains: search, mode: "insensitive" } },
         { colocacion: { contains: search, mode: "insensitive" } },
+        { olt: { contains: search, mode: "insensitive" } },
       ];
     }
 
