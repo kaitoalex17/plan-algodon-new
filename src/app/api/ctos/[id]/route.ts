@@ -324,6 +324,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       });
     }
 
+    // Emitir señal de actualización instantánea para todos los técnicos conectados
+    try {
+      const { triggerBroadcastUpdate } = await import("@/app/api/realtime/route");
+      await triggerBroadcastUpdate();
+    } catch (e) {
+      console.warn("No se pudo emitir broadcast en tiempo real:", e);
+    }
+
     return NextResponse.json(updatedCto);
   } catch (error: any) {
     console.error("Error actualizando CTO:", error);

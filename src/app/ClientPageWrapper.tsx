@@ -271,7 +271,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
       }
     };
 
-    const interval = setInterval(checkRealtimeSync, 4000);
+    // Polling ultraligero de sincronización en tiempo real (señal de pocos bytes)
+    const interval = setInterval(checkRealtimeSync, 2500);
     return () => clearInterval(interval);
   }, [reloadCtosSilently]);
 

@@ -31,6 +31,21 @@ export async function GET(req: NextRequest) {
   }
 }
 
+export async function triggerBroadcastUpdate() {
+  const newTimestamp = Date.now();
+  globalLastMapUpdate = newTimestamp;
+  try {
+    await prisma.setting.upsert({
+      where: { key: "lastMapBroadcastTimestamp" },
+      update: { value: String(newTimestamp) },
+      create: { key: "lastMapBroadcastTimestamp", value: String(newTimestamp) }
+    });
+  } catch (err) {
+    // Si falla la BD, la memoria local mantendrá el timestamp
+  }
+  return newTimestamp;
+}
+
 // POST: El Administrador emite una señal para forzar la actualización del mapa a todos los usuarios conectados
 export async function POST(req: NextRequest) {
   try {
@@ -39,15 +54,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado. Solo administradores pueden emitir sincronizaciones globales." }, { status: 401 });
     }
 
-    const newTimestamp = Date.now();
-    globalLastMapUpdate = newTimestamp;
-
-    // Guardar en la base de datos para persistencia entre múltiples instancias/workers
-    await prisma.setting.upsert({
-      where: { key: "lastMapBroadcastTimestamp" },
-      update: { value: String(newTimestamp) },
-      create: { key: "lastMapBroadcastTimestamp", value: String(newTimestamp) }
-    });
+    const newTimestamp = await triggerBroadcastUpdate();
 
     return NextResponse.json({
       success: true,
