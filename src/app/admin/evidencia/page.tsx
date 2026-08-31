@@ -8,6 +8,8 @@ type ImageRecord = { id: string; url: string };
 type CtoWithImages = {
   id: string;
   num: string;
+  zona: string | null;
+  cluster: string | null;
   municipio: string | null;
   colocacion: string | null;
   images: ImageRecord[];
@@ -19,6 +21,13 @@ type DateGroup = {
   ctoCount: number;
   photoCount: number;
 };
+type ClusterGroup = {
+  name: string;
+  zona: string;
+  ctoCount: number;
+  photoCount: number;
+  ctos: { id: string; num: string; photoCount: number }[];
+};
 
 export default function AdminEvidenciaPage() {
   const router = useRouter();
@@ -26,6 +35,9 @@ export default function AdminEvidenciaPage() {
   
   const [ctos, setCtos] = useState<CtoWithImages[]>([]);
   const [dates, setDates] = useState<DateGroup[]>([]);
+  const [clusters, setClusters] = useState<ClusterGroup[]>([]);
+  const [activeTab, setActiveTab] = useState<"clusters" | "dias" | "ctos">("clusters");
+  const [selectedZona, setSelectedZona] = useState<string>("ALL");
   const [loading, setLoading] = useState(true);
   const [selectedCtoId, setSelectedCtoId] = useState<string | null>(null);
   const [searchCto, setSearchCto] = useState("");
@@ -43,6 +55,7 @@ export default function AdminEvidenciaPage() {
         const data = await res.json();
         setCtos(data.ctos || []);
         setDates(data.dates || []);
+        setClusters(data.clusters || []);
       } else {
         alert("Error al cargar las evidencias fotográficas");
       }
@@ -198,87 +211,275 @@ export default function AdminEvidenciaPage() {
       {/* Contenido Principal */}
       <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "20px", maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
         
-        {/* SECCIÓN 1: DESCARGA DIRECTA POR DÍAS (ZIPS COMPLETOS) */}
-        <div className="glass-panel" style={{ padding: "18px 22px", background: "var(--card-bg)", border: "1.5px solid var(--border-color)", borderRadius: "14px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "var(--text-color)" }}>
-                <span>📦</span> Descarga de Evidencias por Días (ZIP Completo)
-              </h2>
-              <span style={{ fontSize: "0.8rem", opacity: 0.75 }}>
-                Descarga en un solo archivo comprimido todas las fotos tomadas en un día específico organizadas por carpetas de CTOs
-              </span>
-            </div>
-          </div>
+        {/* Selector de Navegación: Por Clusters vs Por Días vs Todas las CTOs */}
+        <div style={{ display: "flex", gap: "8px", background: "var(--card-bg)", padding: "6px", borderRadius: "12px", border: "1px solid var(--border-color)", flexWrap: "wrap" }}>
+          <button
+            onClick={() => { setActiveTab("clusters"); setSelectedCtoId(null); }}
+            style={{
+              flex: 1, minWidth: "160px", padding: "10px 16px", borderRadius: "8px", border: "none",
+              fontWeight: 800, fontSize: "0.9rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              background: activeTab === "clusters" ? "var(--primary-color)" : "transparent",
+              color: activeTab === "clusters" ? "white" : "var(--text-color)",
+              transition: "all 0.2s"
+            }}
+          >
+            <span>📁</span> Por Clusters ({clusters.length})
+          </button>
 
-          {dates.length === 0 ? (
-            <div style={{ padding: "16px", background: "var(--bg-color)", borderRadius: "10px", textAlign: "center", fontSize: "0.88rem", opacity: 0.8 }}>
-              ℹ️ Aún no hay carpetas de fechas registradas con el formato diario estándar.
+          <button
+            onClick={() => { setActiveTab("dias"); setSelectedCtoId(null); }}
+            style={{
+              flex: 1, minWidth: "160px", padding: "10px 16px", borderRadius: "8px", border: "none",
+              fontWeight: 800, fontSize: "0.9rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              background: activeTab === "dias" ? "var(--primary-color)" : "transparent",
+              color: activeTab === "dias" ? "white" : "var(--text-color)",
+              transition: "all 0.2s"
+            }}
+          >
+            <span>📅</span> Por Días ({dates.length})
+          </button>
+
+          <button
+            onClick={() => { setActiveTab("ctos"); setSelectedCtoId(null); }}
+            style={{
+              flex: 1, minWidth: "160px", padding: "10px 16px", borderRadius: "8px", border: "none",
+              fontWeight: 800, fontSize: "0.9rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              background: activeTab === "ctos" ? "var(--primary-color)" : "transparent",
+              color: activeTab === "ctos" ? "white" : "var(--text-color)",
+              transition: "all 0.2s"
+            }}
+          >
+            <span>🔍</span> Explorador de CTOs ({filteredCtos.length})
+          </button>
+        </div>
+
+        {/* VISTA 1: ORGANIZACIÓN POR CLUSTERS (CLUSTER A, B, D... / CTOs / NOMBRE_CTO) */}
+        {activeTab === "clusters" && !selectedCtoId && (
+          <div className="glass-panel" style={{ padding: "20px", background: "var(--card-bg)", border: "1.5px solid var(--border-color)", borderRadius: "14px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+              <div>
+                <h2 style={{ fontSize: "1.15rem", fontWeight: 800, margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "var(--text-color)" }}>
+                  <span>📂</span> Evidencias por Clusters (Estructura: Cluster → CTOs → Fotos)
+                </h2>
+                <span style={{ fontSize: "0.8rem", opacity: 0.75 }}>
+                  Descarga carpetas de clúster completas organizadas internamente con la subcarpeta <strong>CTOs/[nombre_de_cto]</strong>
+                </span>
+              </div>
+
+              {/* Botón Descargar Todo */}
+              <button
+                onClick={() => {
+                  window.location.href = `/api/admin/evidencia/download-cluster?cluster=all`;
+                }}
+                className="btn"
+                style={{
+                  background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "8px 16px",
+                  fontWeight: 800,
+                  fontSize: "0.84rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  boxShadow: "0 2px 6px rgba(2, 132, 199, 0.3)"
+                }}
+                title="Descarga todas las evidencias del proyecto organizadas por Clusters y CTOs"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Descargar Todos los Clusters (ZIP)
+              </button>
             </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "12px" }}>
-              {dates.map((d) => (
-                <div 
-                  key={d.date}
-                  style={{
-                    background: "var(--bg-color)",
-                    border: "1px solid var(--border-color)",
-                    borderRadius: "10px",
-                    padding: "14px 16px",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    gap: "10px"
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+
+            {clusters.length === 0 ? (
+              <div style={{ padding: "2rem", background: "var(--bg-color)", borderRadius: "10px", textAlign: "center", opacity: 0.8 }}>
+                ℹ️ No hay clústers con evidencias fotográficas registradas actualmente.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "14px" }}>
+                {clusters.map((cl) => (
+                  <div
+                    key={cl.name}
+                    style={{
+                      background: "var(--bg-color)",
+                      border: "1px solid var(--border-color)",
+                      borderRadius: "12px",
+                      padding: "16px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      transition: "transform 0.15s ease",
+                    }}
+                  >
                     <div>
-                      <strong style={{ fontSize: "1rem", color: "var(--text-color)", display: "block" }}>
-                        📅 {d.date}
-                      </strong>
-                      <span style={{ fontSize: "0.78rem", opacity: 0.75 }}>
-                        {d.ctoCount} CTOs · {d.photoCount} fotos
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
+                        <strong style={{ fontSize: "1.05rem", color: "var(--text-color)", display: "flex", alignItems: "center", gap: "6px" }}>
+                          📁 {cl.name}
+                        </strong>
+                        {cl.zona && (
+                          <span style={{ fontSize: "0.72rem", background: "rgba(255, 121, 0, 0.15)", color: "var(--primary-color)", padding: "2px 8px", borderRadius: "6px", fontWeight: 800 }}>
+                            Zona {cl.zona}
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ margin: 0, fontSize: "0.82rem", opacity: 0.8 }}>
+                        {cl.ctoCount} CTOs · {cl.photoCount} fotografías
+                      </p>
+                      <span style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: "4px", display: "block" }}>
+                        Ruta: <code>{cl.name}/CTOs/[nombre_cto]/</code>
                       </span>
                     </div>
-                    <span style={{ fontSize: "0.7rem", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "2px 8px", borderRadius: "8px", fontWeight: 800 }}>
-                      Listo
-                    </span>
-                  </div>
 
-                  <button
-                    onClick={() => {
-                      window.location.href = `/api/admin/evidencia/download-day?date=${d.date}`;
-                    }}
-                    className="btn"
-                    style={{
-                      background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "8px",
-                      padding: "8px 12px",
-                      fontWeight: 800,
-                      fontSize: "0.82rem",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px",
-                      boxShadow: "0 2px 6px rgba(16, 185, 129, 0.3)"
-                    }}
-                    title={`Descargar todas las fotos del día ${d.date} en un único archivo ZIP`}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="7 10 12 15 17 10" />
-                      <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                    Descargar Día en ZIP
-                  </button>
-                </div>
-              ))}
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={() => {
+                          window.location.href = `/api/admin/evidencia/download-cluster?cluster=${encodeURIComponent(cl.name)}`;
+                        }}
+                        className="btn"
+                        style={{
+                          flex: 1,
+                          background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "8px",
+                          padding: "8px 12px",
+                          fontWeight: 800,
+                          fontSize: "0.82rem",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "6px",
+                          boxShadow: "0 2px 6px rgba(16, 185, 129, 0.25)"
+                        }}
+                        title={`Descargar archivo ZIP del clúster ${cl.name}`}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        Descargar ZIP
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setSearchCto(cl.name);
+                          setActiveTab("ctos");
+                        }}
+                        className="btn"
+                        style={{
+                          background: "var(--card-bg)",
+                          color: "var(--text-color)",
+                          border: "1px solid var(--border-color)",
+                          borderRadius: "8px",
+                          padding: "8px 10px",
+                          fontWeight: 700,
+                          fontSize: "0.8rem",
+                          cursor: "pointer"
+                        }}
+                        title="Ver CTOs de este clúster"
+                      >
+                        Ver CTOs
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* VISTA 2: DESCARGA DIRECTA POR DÍAS (ZIPS COMPLETOS) */}
+        {activeTab === "dias" && !selectedCtoId && (
+          <div className="glass-panel" style={{ padding: "18px 22px", background: "var(--card-bg)", border: "1.5px solid var(--border-color)", borderRadius: "14px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
+              <div>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "var(--text-color)" }}>
+                  <span>📦</span> Descarga de Evidencias por Días (ZIP Completo)
+                </h2>
+                <span style={{ fontSize: "0.8rem", opacity: 0.75 }}>
+                  Descarga en un solo archivo comprimido todas las fotos tomadas en un día específico organizadas por carpetas de CTOs
+                </span>
+              </div>
             </div>
-          )}
-        </div>
+
+            {dates.length === 0 ? (
+              <div style={{ padding: "16px", background: "var(--bg-color)", borderRadius: "10px", textAlign: "center", fontSize: "0.88rem", opacity: 0.8 }}>
+                ℹ️ Aún no hay carpetas de fechas registradas con el formato diario estándar.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "12px" }}>
+                {dates.map((d) => (
+                  <div 
+                    key={d.date}
+                    style={{
+                      background: "var(--bg-color)",
+                      border: "1px solid var(--border-color)",
+                      borderRadius: "10px",
+                      padding: "14px 16px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      gap: "10px"
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <strong style={{ fontSize: "1rem", color: "var(--text-color)", display: "block" }}>
+                          📅 {d.date}
+                        </strong>
+                        <span style={{ fontSize: "0.78rem", opacity: 0.75 }}>
+                          {d.ctoCount} CTOs · {d.photoCount} fotos
+                        </span>
+                      </div>
+                      <span style={{ fontSize: "0.7rem", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "2px 8px", borderRadius: "8px", fontWeight: 800 }}>
+                        Listo
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        window.location.href = `/api/admin/evidencia/download-day?date=${d.date}`;
+                      }}
+                      className="btn"
+                      style={{
+                        background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "8px",
+                        padding: "8px 12px",
+                        fontWeight: 800,
+                        fontSize: "0.82rem",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                        boxShadow: "0 2px 6px rgba(16, 185, 129, 0.3)"
+                      }}
+                      title={`Descargar todas las fotos del día ${d.date} en un único archivo ZIP`}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                      Descargar Día en ZIP
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* SECCIÓN 2: EXPLORADOR POR CTOs INDIVIDUALES */}
         {!selectedCtoId ? (
