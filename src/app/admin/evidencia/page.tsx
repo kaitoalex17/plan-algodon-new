@@ -11,6 +11,13 @@ type CtoWithImages = {
   municipio: string | null;
   colocacion: string | null;
   images: ImageRecord[];
+  assignedTo?: { name: string; color: string } | null;
+  auditedBy?: { name: string; color: string } | null;
+};
+type DateGroup = {
+  date: string;
+  ctoCount: number;
+  photoCount: number;
 };
 
 export default function AdminEvidenciaPage() {
@@ -18,8 +25,10 @@ export default function AdminEvidenciaPage() {
   const { data: session, status: authStatus } = useSession();
   
   const [ctos, setCtos] = useState<CtoWithImages[]>([]);
+  const [dates, setDates] = useState<DateGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCtoId, setSelectedCtoId] = useState<string | null>(null);
+  const [searchCto, setSearchCto] = useState("");
   
   // Lightbox
   const [activeImgIndex, setActiveImgIndex] = useState<number | null>(null);
@@ -31,7 +40,9 @@ export default function AdminEvidenciaPage() {
     try {
       const res = await fetch("/api/admin/evidencia");
       if (res.ok) {
-        setCtos(await res.json());
+        const data = await res.json();
+        setCtos(data.ctos || []);
+        setDates(data.dates || []);
       } else {
         alert("Error al cargar las evidencias fotográficas");
       }
@@ -58,10 +69,16 @@ export default function AdminEvidenciaPage() {
   if (loading || authStatus === "loading") {
     return (
       <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg-color)", color: "var(--text-color)" }}>
-        <p style={{ fontWeight: 700 }}>Cargando evidencias fotográficas...</p>
+        <p style={{ fontWeight: 700 }}>Cargando explorador de evidencias...</p>
       </div>
     );
   }
+
+  const filteredCtos = ctos.filter(c => {
+    const matchesSearch = c.num.toLowerCase().includes(searchCto.toLowerCase()) || 
+                          (c.municipio && c.municipio.toLowerCase().includes(searchCto.toLowerCase()));
+    return matchesSearch;
+  });
 
   const selectedCto = ctos.find(c => c.id === selectedCtoId);
 
@@ -138,46 +155,165 @@ export default function AdminEvidenciaPage() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-color)", color: "var(--text-color)", display: "flex", flexDirection: "column" }}>
       
-      {/* Cabecera */}
-      <header style={{ background: "var(--card-bg)", borderBottom: "1px solid var(--border-color)", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", zIndex: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      {/* Header Fijo */}
+      <header style={{ 
+        position: "sticky", top: 0, zIndex: 10, background: "var(--card-bg)", 
+        borderBottom: "1px solid var(--border-color)", padding: "12px 24px", 
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <button 
-            onClick={() => {
-              const role = (session?.user as any)?.role;
-              router.push(role === "GESTOR" ? "/gestion" : "/admin");
-            }} 
+            onClick={() => router.push("/admin")} 
             className="btn" 
-            style={{ minHeight: "36px", padding: "6px 12px", background: "var(--border-color)", color: "var(--text-color)", borderRadius: "8px", fontWeight: 700 }}
+            style={{ 
+              background: "var(--bg-color)", border: "1px solid var(--border-color)", 
+              color: "var(--text-color)", borderRadius: "8px", padding: "6px 12px", 
+              fontWeight: 700, cursor: "pointer" 
+            }}
           >
-            ← Volver
+            ← Volver al Panel
           </button>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--primary-color)" }}>
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-            <h1 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0 }}>Evidencias Fotográficas</h1>
+          <div>
+            <h1 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0, color: "var(--text-color)" }}>
+              📸 Gestor de Evidencias V2 (Por Días y CTOs)
+            </h1>
+            <p style={{ margin: 0, fontSize: "0.8rem", opacity: 0.7 }}>
+              Descarga organizada de fotos diarias en ZIP y visor interactivo de evidencias
+            </p>
           </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <button
+            onClick={fetchEvidencias}
+            className="btn"
+            style={{ padding: "8px 14px", background: "var(--bg-color)", color: "var(--text-color)", border: "1px solid var(--border-color)", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem" }}
+          >
+            🔄 Actualizar
+          </button>
         </div>
       </header>
 
       {/* Contenido Principal */}
-      <main style={{ flex: 1, padding: "16px", overflowY: "auto", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "20px", maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
         
-        {!selectedCtoId ? (
-          // VISTA 1: Carpetas por CTO
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: "0.95rem", opacity: 0.7, marginBottom: "16px", textTransform: "uppercase", fontWeight: 700 }}>
-              Carpetas por CTO ({ctos.length})
-            </h2>
+        {/* SECCIÓN 1: DESCARGA DIRECTA POR DÍAS (ZIPS COMPLETOS) */}
+        <div className="glass-panel" style={{ padding: "18px 22px", background: "var(--card-bg)", border: "1.5px solid var(--border-color)", borderRadius: "14px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "var(--text-color)" }}>
+                <span>📦</span> Descarga de Evidencias por Días (ZIP Completo)
+              </h2>
+              <span style={{ fontSize: "0.8rem", opacity: 0.75 }}>
+                Descarga en un solo archivo comprimido todas las fotos tomadas en un día específico organizadas por carpetas de CTOs
+              </span>
+            </div>
+          </div>
 
-            {ctos.length === 0 ? (
-              <div className="glass-panel" style={{ padding: "3rem", textAlign: "center", background: "var(--card-bg)", borderColor: "var(--border-color)" }}>
-                <p style={{ fontStyle: "italic", margin: 0 }}>No hay evidencias fotográficas registradas en la base de datos.</p>
+          {dates.length === 0 ? (
+            <div style={{ padding: "16px", background: "var(--bg-color)", borderRadius: "10px", textAlign: "center", fontSize: "0.88rem", opacity: 0.8 }}>
+              ℹ️ Aún no hay carpetas de fechas registradas con el formato diario estándar.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "12px" }}>
+              {dates.map((d) => (
+                <div 
+                  key={d.date}
+                  style={{
+                    background: "var(--bg-color)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "10px",
+                    padding: "14px 16px",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    gap: "10px"
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <strong style={{ fontSize: "1rem", color: "var(--text-color)", display: "block" }}>
+                        📅 {d.date}
+                      </strong>
+                      <span style={{ fontSize: "0.78rem", opacity: 0.75 }}>
+                        {d.ctoCount} CTOs · {d.photoCount} fotos
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "0.7rem", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "2px 8px", borderRadius: "8px", fontWeight: 800 }}>
+                      Listo
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      window.location.href = `/api/admin/evidencia/download-day?date=${d.date}`;
+                    }}
+                    className="btn"
+                    style={{
+                      background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "8px 12px",
+                      fontWeight: 800,
+                      fontSize: "0.82rem",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                      boxShadow: "0 2px 6px rgba(16, 185, 129, 0.3)"
+                    }}
+                    title={`Descargar todas las fotos del día ${d.date} en un único archivo ZIP`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Descargar Día en ZIP
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* SECCIÓN 2: EXPLORADOR POR CTOs INDIVIDUALES */}
+        {!selectedCtoId ? (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
+              <h2 style={{ fontSize: "1.05rem", fontWeight: 800, margin: 0, textTransform: "uppercase", color: "var(--text-color)" }}>
+                📁 Carpetas por CTO ({filteredCtos.length})
+              </h2>
+
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Buscar CTO o Municipio..."
+                  value={searchCto}
+                  onChange={(e) => setSearchCto(e.target.value)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border-color)",
+                    background: "var(--card-bg)",
+                    color: "var(--text-color)",
+                    fontSize: "0.88rem",
+                    minWidth: "240px"
+                  }}
+                />
+              </div>
+            </div>
+
+            {filteredCtos.length === 0 ? (
+              <div className="glass-panel" style={{ padding: "3rem", textAlign: "center", background: "var(--card-bg)", borderColor: "var(--border-color)", borderRadius: "12px" }}>
+                <p style={{ fontStyle: "italic", margin: 0 }}>No hay evidencias fotográficas que coincidan con la búsqueda.</p>
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px" }}>
-                {ctos.map((ctoItem) => (
+                {filteredCtos.map((ctoItem) => (
                   <div
                     key={ctoItem.id}
                     onClick={() => setSelectedCtoId(ctoItem.id)}
@@ -185,13 +321,14 @@ export default function AdminEvidenciaPage() {
                     style={{ 
                       padding: "16px", cursor: "pointer", background: "var(--card-bg)", 
                       borderColor: "var(--border-color)", display: "flex", flexDirection: "column", 
-                      alignItems: "center", justifyContent: "center", gap: "10px", textAlign: "center",
+                      alignItems: "center", justifyContent: "center", gap: "8px", textAlign: "center",
+                      borderRadius: "12px",
                       transition: "transform 0.15s, box-shadow 0.15s"
                     }}
                   >
                     {/* Icono de Carpeta */}
                     <div style={{ color: "var(--primary-color)" }}>
-                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                       </svg>
                     </div>
@@ -205,7 +342,6 @@ export default function AdminEvidenciaPage() {
                       {ctoItem.images.length} {ctoItem.images.length === 1 ? "foto" : "fotos"}
                     </span>
                     
-                    {/* Botón Descargar Carpeta (ZIP) */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -214,13 +350,13 @@ export default function AdminEvidenciaPage() {
                       className="btn"
                       style={{
                         marginTop: "4px",
-                        minHeight: "32px",
-                        fontSize: "0.75rem",
+                        minHeight: "30px",
+                        fontSize: "0.72rem",
                         padding: "4px 10px",
-                        background: "#10b981",
+                        background: "var(--primary-color)",
                         color: "white",
                         borderRadius: "6px",
-                        fontWeight: 700,
+                        fontWeight: 800,
                         gap: "4px",
                         display: "flex",
                         alignItems: "center",
@@ -234,7 +370,7 @@ export default function AdminEvidenciaPage() {
                         <polyline points="7 10 12 15 17 10" />
                         <line x1="12" y1="15" x2="12" y2="3" />
                       </svg>
-                      Descargar ZIP
+                      Descargar CTO
                     </button>
                   </div>
                 ))}
@@ -372,7 +508,7 @@ export default function AdminEvidenciaPage() {
           </div>
         )}
 
-      </main>
+      </div>
 
       {/* VISOR LIGHTBOX PARA EL ADMINISTRADOR */}
       {activeImgIndex !== null && selectedCto?.images && selectedCto.images[activeImgIndex] && (
