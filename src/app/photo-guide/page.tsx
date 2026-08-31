@@ -191,6 +191,8 @@ function PhotoGuideContent() {
   // Visor Lightbox para fotos
   const [viewerImgUrl, setViewerImgUrl] = useState<string | null>(null);
 
+  const [currentTheme, setCurrentTheme] = useState<string>("orange");
+
   // Cargar configuración de compresión y tema de usuario
   useEffect(() => {
     fetch("/api/upload/config")
@@ -206,17 +208,23 @@ function PhotoGuideContent() {
       .catch(() => {});
 
     // Cargar y aplicar tema inmediatamente desde localStorage y luego de la API
-    const savedTheme = localStorage.getItem("app_theme");
-    if (savedTheme) {
-      document.documentElement.className = document.documentElement.className.replace(/theme-\S+/g, "").trim() + ` theme-${savedTheme}`;
-      document.body.className = document.body.className.replace(/theme-\S+/g, "").trim() + ` theme-${savedTheme}`;
-    }
+    try {
+      const savedTheme = localStorage.getItem("app_theme");
+      if (savedTheme) {
+        setCurrentTheme(savedTheme);
+        document.documentElement.className = document.documentElement.className.replace(/theme-\S+/g, "").trim() + ` theme-${savedTheme}`;
+        document.body.className = document.body.className.replace(/theme-\S+/g, "").trim() + ` theme-${savedTheme}`;
+      }
+    } catch (e) {}
 
     fetch("/api/users/map-state")
       .then((r) => r.json())
       .then((data) => {
         if (data && data.theme) {
-          localStorage.setItem("app_theme", data.theme);
+          setCurrentTheme(data.theme);
+          try {
+            localStorage.setItem("app_theme", data.theme);
+          } catch (e) {}
           document.documentElement.className = document.documentElement.className.replace(/theme-\S+/g, "").trim() + ` theme-${data.theme}`;
           document.body.className = document.body.className.replace(/theme-\S+/g, "").trim() + ` theme-${data.theme}`;
         }
@@ -611,7 +619,7 @@ function PhotoGuideContent() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-color, #090d16)", color: "var(--text-color, #f8fafc)", display: "flex", flexDirection: "column" }}>
+    <div className={`theme-${currentTheme}`} style={{ minHeight: "100vh", background: "var(--bg-color)", color: "var(--text-color)", display: "flex", flexDirection: "column" }}>
       
       {/* Header Fijo Compacto */}
       <header style={{ position: "sticky", top: 0, zIndex: 50, background: "var(--card-bg)", borderBottom: "1px solid var(--border-color)", padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
@@ -780,18 +788,6 @@ function PhotoGuideContent() {
       {/* Contenido Principal */}
       <main style={{ flex: 1, padding: "10px 12px", maxWidth: "800px", width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: "10px" }}>
         
-        {/* Banner de Ayuda Compacto */}
-        <div style={{ background: "rgba(59, 130, 246, 0.08)", border: "1px solid rgba(59, 130, 246, 0.3)", borderRadius: "10px", padding: "8px 12px", display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "rgba(59, 130, 246, 0.15)", display: "flex", alignItems: "center", justifyContent: "center", color: "#3b82f6", flexShrink: 0 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-          </div>
-          <div style={{ flex: 1, fontSize: "0.74rem", color: "var(--text-color)", opacity: 0.9 }}>
-            <strong>Subida fluida:</strong> Captura las fotos necesarias. Se optimizan y suben en segundo plano automáticamente.
-          </div>
-        </div>
-
         {/* Cola de Subida Pendiente (si existe) */}
         {pendingUploads.length > 0 && (
           <div style={{ background: "var(--card-bg)", border: "1px dashed #f59e0b", borderRadius: "10px", padding: "8px 12px" }}>

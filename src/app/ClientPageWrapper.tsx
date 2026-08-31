@@ -61,14 +61,14 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const [filterCategory, setFilterCategory] = useState("AUDITORIA");
 
   useEffect(() => {
-    // Eliminar temas anteriores
-    document.body.classList.forEach(className => {
-      if (className.startsWith("theme-")) {
-        document.body.classList.remove(className);
-      }
-    });
-    // Añadir el nuevo tema
-    document.body.classList.add(`theme-${theme}`);
+    // Sincronizar tema con localStorage y clases globales de body y html
+    if (theme) {
+      try {
+        localStorage.setItem("app_theme", theme);
+      } catch (e) {}
+      document.documentElement.className = document.documentElement.className.replace(/theme-\S+/g, "").trim() + ` theme-${theme}`;
+      document.body.className = document.body.className.replace(/theme-\S+/g, "").trim() + ` theme-${theme}`;
+    }
   }, [theme]);
 
   // Selección automática de CTO si viene especificada en la URL (ej: /?ctoId=... o /?cto=...)
