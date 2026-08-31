@@ -96,6 +96,16 @@ export async function GET(req: NextRequest) {
       return null;
     }
 
+    const cleanCto = cto.num.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const dateObj = cto.fechaAgregacion || new Date();
+    const d = new Date(dateObj);
+    const dayStr = String(d.getDate()).padStart(2, "0");
+    const monthStr = String(d.getMonth() + 1).padStart(2, "0");
+    const yearStr = String(d.getFullYear()).slice(-2);
+    const datePattern = `${dayStr}${monthStr}${yearStr}`;
+
+    const categoryCounter: { [key: string]: number } = {};
+
     for (const image of targetImages) {
       const filename = image.url.split("/").pop();
       if (!filename) continue;
@@ -108,13 +118,29 @@ export async function GET(req: NextRequest) {
 
       if (fs.existsSync(filepath)) {
         const fileBuffer = fs.readFileSync(filepath);
-        zip.file(filename, fileBuffer);
+
+        const urlLower = filename.toLowerCase();
+        let catKey = "foto";
+        if (urlLower.includes("entorno")) catKey = "entorno";
+        else if (urlLower.includes("cto_abierta") || urlLower.includes("abierta")) catKey = "cto_abierta";
+        else if (urlLower.includes("etiquetado_cto")) catKey = "etiquetado_cto";
+        else if (urlLower.includes("etiquetado_cableado") || urlLower.includes("cableado")) catKey = "etiquetado_cableado";
+        else if (urlLower.includes("potencia")) catKey = "potencia";
+        else if (urlLower.includes("mapa_coordenadas")) catKey = "mapa_coordenadas";
+        else if (urlLower.includes("otras") || downloadType === "otros") catKey = "otras";
+
+        categoryCounter[catKey] = (categoryCounter[catKey] || 0) + 1;
+        const idx = categoryCounter[catKey];
+        const suffix = idx > 1 ? `_${idx}` : "";
+        const standardZipFileName = `${catKey}${suffix}_${cleanCto}_${datePattern}.jpg`;
+
+        zip.file(standardZipFileName, fileBuffer);
       }
     }
 
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
 
-    const safeNum = cto.num.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const safeNum = cleanCto;
     const zipPrefix = downloadType === "antala" ? "antala" : downloadType === "otros" ? "otras_fotos" : "evidencias";
     const response = new NextResponse(zipBuffer, {
       status: 200,

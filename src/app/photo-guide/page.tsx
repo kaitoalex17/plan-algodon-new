@@ -404,14 +404,38 @@ function PhotoGuideContent() {
     }
   };
 
+  // Helper para generar el nombre de archivo con el patrón: tipodefoto[_indice]_[cto]_[DDMMYY].jpg
+  const getFormattedPhotoName = (categoryKey: string) => {
+    if (!cto) return `foto_${Date.now()}.jpg`;
+
+    // 1. Obtener día en formato DDMMYY (ej: 310826 para 31-08-2026)
+    const now = new Date();
+    const dayStr = String(now.getDate()).padStart(2, "0");
+    const monthStr = String(now.getMonth() + 1).padStart(2, "0");
+    const yearStr = String(now.getFullYear()).slice(-2);
+    const datePattern = `${dayStr}${monthStr}${yearStr}`;
+
+    // 2. Limpiar código de CTO (mantener guiones y caracteres válidos)
+    const cleanCtoNum = (cto.num || "CTO").replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    // 3. Contar cuántas fotos ya existen de esta categoría en la CTO
+    const existingCount = images.filter(img => {
+      const urlLower = (img.url || "").toLowerCase();
+      return urlLower.includes(categoryKey.toLowerCase());
+    }).length;
+
+    // 4. Si hay más de 1, añadir índice ej: entorno_2_331-29-023741-1_310826.jpg
+    const suffixIndex = existingCount > 0 ? `_${existingCount + 1}` : "";
+
+    return `${categoryKey}${suffixIndex}_${cleanCtoNum}_${datePattern}.jpg`;
+  };
+
   // Subida de imagen para una categoría específica
   const handleCategoryUpload = async (categoryKey: string, file: File) => {
     if (!cto) return;
     setActiveUploadingKey(categoryKey);
 
-    const safeNum = (cto.num || "CTO").replace(/[^a-zA-Z0-9_-]/g, "_");
-    const uniqueSuffix = `${Date.now()}`;
-    const formattedName = `${safeNum}_${categoryKey}_${uniqueSuffix}.jpg`;
+    const formattedName = getFormattedPhotoName(categoryKey);
     const fileId = `guide-${categoryKey}-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
 
     try {
@@ -567,8 +591,7 @@ function PhotoGuideContent() {
       // Convertir a blob y subir
       canvas.toBlob(async (blob) => {
         if (!blob) return;
-        const safeNum = (cto.num || "CTO").replace(/[^a-zA-Z0-9_-]/g, "_");
-        const fileName = `${safeNum}_mapa_coordenadas_${Date.now()}.jpg`;
+        const fileName = getFormattedPhotoName("mapa_coordenadas");
         const fileId = `guide-mapa_coordenadas-${Date.now()}`;
 
         await savePendingUpload({
@@ -665,8 +688,33 @@ function PhotoGuideContent() {
                 return;
               }
 
+              // Calcular fecha en formato DDMMYY
+              const now = new Date();
+              const dayStr = String(now.getDate()).padStart(2, "0");
+              const monthStr = String(now.getMonth() + 1).padStart(2, "0");
+              const yearStr = String(now.getFullYear()).slice(-2);
+              const datePattern = `${dayStr}${monthStr}${yearStr}`;
+              const cleanCto = (cto?.num || "CTO").replace(/[^a-zA-Z0-9_-]/g, "_");
+
+              const categoryCounter: { [key: string]: number } = {};
+
               for (let i = 0; i < antalaImgs.length; i++) {
                 const img = antalaImgs[i];
+                const urlLower = (img.url || "").toLowerCase();
+                
+                let catKey = "antala";
+                if (urlLower.includes("entorno")) catKey = "entorno";
+                else if (urlLower.includes("cto_abierta") || urlLower.includes("abierta")) catKey = "cto_abierta";
+                else if (urlLower.includes("etiquetado_cto")) catKey = "etiquetado_cto";
+                else if (urlLower.includes("etiquetado_cableado") || urlLower.includes("cableado")) catKey = "etiquetado_cableado";
+                else if (urlLower.includes("potencia")) catKey = "potencia";
+                else if (urlLower.includes("mapa_coordenadas")) catKey = "mapa_coordenadas";
+
+                categoryCounter[catKey] = (categoryCounter[catKey] || 0) + 1;
+                const idx = categoryCounter[catKey];
+                const suffix = idx > 1 ? `_${idx}` : "";
+                const downloadName = `${catKey}${suffix}_${cleanCto}_${datePattern}.jpg`;
+
                 try {
                   const response = await fetch(img.url);
                   const blob = await response.blob();
@@ -674,7 +722,7 @@ function PhotoGuideContent() {
                   const a = document.createElement("a");
                   a.style.display = "none";
                   a.href = blobUrl;
-                  a.download = img.url.split("/").pop() || `antala_${cto?.num || "cto"}_${i + 1}.jpg`;
+                  a.download = downloadName;
                   document.body.appendChild(a);
                   a.click();
                   window.URL.revokeObjectURL(blobUrl);
@@ -731,8 +779,18 @@ function PhotoGuideContent() {
                 return;
               }
 
+              const now = new Date();
+              const dayStr = String(now.getDate()).padStart(2, "0");
+              const monthStr = String(now.getMonth() + 1).padStart(2, "0");
+              const yearStr = String(now.getFullYear()).slice(-2);
+              const datePattern = `${dayStr}${monthStr}${yearStr}`;
+              const cleanCto = (cto?.num || "CTO").replace(/[^a-zA-Z0-9_-]/g, "_");
+
               for (let i = 0; i < otrasImgs.length; i++) {
                 const img = otrasImgs[i];
+                const suffix = i > 0 ? `_${i + 1}` : "";
+                const downloadName = `otras${suffix}_${cleanCto}_${datePattern}.jpg`;
+
                 try {
                   const response = await fetch(img.url);
                   const blob = await response.blob();
@@ -740,7 +798,7 @@ function PhotoGuideContent() {
                   const a = document.createElement("a");
                   a.style.display = "none";
                   a.href = blobUrl;
-                  a.download = img.url.split("/").pop() || `otras_${cto?.num || "cto"}_${i + 1}.jpg`;
+                  a.download = downloadName;
                   document.body.appendChild(a);
                   a.click();
                   window.URL.revokeObjectURL(blobUrl);

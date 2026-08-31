@@ -76,10 +76,19 @@ export async function GET(req: NextRequest) {
       const safeCtoNum = (cto.num || "CTO").replace(/[^a-zA-Z0-9_-]/g, "_");
       
       // Estructura requerida por el usuario:
-      // CLUSTER_NOMBRE / CTOs / NOMBRE_DE_LA_CTO / foto.jpg
+      // CLUSTER_NOMBRE / CTOs / NOMBRE_DE_LA_CTO / tipodefoto[_indice]_[cto]_[dia].jpg
       const targetZipPath = `${clusterFolder}/CTOs/${safeCtoNum}`;
       const folderRef = zip.folder(targetZipPath);
       if (!folderRef) continue;
+
+      const dateObj = cto.fechaAgregacion || new Date();
+      const d = new Date(dateObj);
+      const dayStr = String(d.getDate()).padStart(2, "0");
+      const monthStr = String(d.getMonth() + 1).padStart(2, "0");
+      const yearStr = String(d.getFullYear()).slice(-2);
+      const datePattern = `${dayStr}${monthStr}${yearStr}`;
+
+      const categoryCounter: { [key: string]: number } = {};
 
       for (let i = 0; i < cto.images.length; i++) {
         const img = cto.images[i];
@@ -94,7 +103,23 @@ export async function GET(req: NextRequest) {
 
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
           const fileData = fs.readFileSync(filePath);
-          folderRef.file(safeFilename, fileData);
+
+          const urlLower = rawFilename.toLowerCase();
+          let catKey = "foto";
+          if (urlLower.includes("entorno")) catKey = "entorno";
+          else if (urlLower.includes("cto_abierta") || urlLower.includes("abierta")) catKey = "cto_abierta";
+          else if (urlLower.includes("etiquetado_cto")) catKey = "etiquetado_cto";
+          else if (urlLower.includes("etiquetado_cableado") || urlLower.includes("cableado")) catKey = "etiquetado_cableado";
+          else if (urlLower.includes("potencia")) catKey = "potencia";
+          else if (urlLower.includes("mapa_coordenadas")) catKey = "mapa_coordenadas";
+          else if (urlLower.includes("otras")) catKey = "otras";
+
+          categoryCounter[catKey] = (categoryCounter[catKey] || 0) + 1;
+          const idx = categoryCounter[catKey];
+          const suffix = idx > 1 ? `_${idx}` : "";
+          const standardName = `${catKey}${suffix}_${safeCtoNum}_${datePattern}.jpg`;
+
+          folderRef.file(standardName, fileData);
           totalPhotosAdded++;
         }
       }
