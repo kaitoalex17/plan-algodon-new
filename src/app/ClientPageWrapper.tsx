@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import MapWrapper from "@/components/MapWrapper";
 import CtoDrawer from "@/components/CtoDrawer";
 import { signOut, useSession } from "next-auth/react";
+import { sendLiveTechLocation } from "@/lib/techLocationSync";
 
 type SubStatus = { id: string; name: string; color: string };
 type User = { id: string; name: string; email: string };
@@ -70,6 +71,21 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
       document.body.className = document.body.className.replace(/theme-\S+/g, "").trim() + ` theme-${theme}`;
     }
   }, [theme]);
+
+  // Sincronización automática de ubicación GPS: al entrar y cada 10 minutos
+  useEffect(() => {
+    if (session?.user) {
+      // 1. Envío inmediato al entrar en la app
+      sendLiveTechLocation();
+
+      // 2. Intervalo periódico cada 10 minutos (600.000 ms)
+      const interval = setInterval(() => {
+        sendLiveTechLocation();
+      }, 10 * 60 * 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [session?.user]);
 
   // Selección automática de CTO si viene especificada en la URL (ej: /?ctoId=... o /?cto=...)
   useEffect(() => {

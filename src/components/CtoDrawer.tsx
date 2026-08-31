@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
+import { sendLiveTechLocation } from "@/lib/techLocationSync";
 
 type SubStatus = { id: string; name: string; color: string };
 type User = { id: string; name: string; email: string; color: string };
@@ -387,6 +388,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         };
         onUpdate(fullUpdatedCto);
         fetchCtoDetails();
+        sendLiveTechLocation();
         alert(`✅ ¡CTO ${cto.num} marcada como REPARADA con éxito!\n\n• Estado: CORRECTO\n• Reparado por: ${techName}\n• Asignación: Sin asignar`);
       } else {
         const errData = await res.json();
@@ -832,6 +834,10 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
         onUpdate(fullUpdatedCto);
         fetchCtoDetails(); // Refrescar detalles de comentarios/historial
+        
+        // Enviar ubicación en vivo del técnico de inmediato al guardar o modificar una caja
+        sendLiveTechLocation();
+
         alert("CTO guardada correctamente");
       } else {
         alert("Error al guardar los cambios");
