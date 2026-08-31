@@ -7,10 +7,15 @@ self.addEventListener("activate", (e) => {
 });
 
 self.addEventListener("fetch", (e) => {
+  const url = new URL(e.request.url);
+  // No interceptar peticiones de autenticación ni llamadas de API
+  if (url.pathname.startsWith("/api/auth/")) {
+    return;
+  }
+
   // Pass-through con captura de errores de red
   e.respondWith(
     fetch(e.request).catch((err) => {
-      // Fallback silencioso en caso de cancelación o fallo de red
       return new Response("", { status: 408, statusText: "Request Timeout / Network Error" });
     })
   );
