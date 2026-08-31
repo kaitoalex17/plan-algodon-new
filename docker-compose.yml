@@ -24,7 +24,9 @@ services:
       - PORT=3020
       - DATABASE_URL=postgresql://${POSTGRES_USER:-cto_admin_fase3}:${POSTGRES_PASSWORD:-admin_cto_secure_2024_fase3}@db:5432/${POSTGRES_DB:-cto_tracker_fase3}?schema=public
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-esta_es_una_clave_secreta_para_nextauth_7_dias_fase3}
-      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://192.168.1.85:3020}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-https://auditoria.instala.xyz}
+      - NEXTAUTH_URL_INTERNAL=http://localhost:3020
+      - AUTH_TRUST_HOST=true
     volumes:
       - cto_uploads_fase3:/app/public/uploads # Volumen para persistir las imágenes subidas
     depends_on:
