@@ -90,6 +90,9 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const handleThemeChange = async (val: string) => {
     setTheme(val);
     try {
+      localStorage.setItem("app_theme", val);
+      document.documentElement.className = document.documentElement.className.replace(/theme-\S+/g, "").trim() + ` theme-${val}`;
+      document.body.className = document.body.className.replace(/theme-\S+/g, "").trim() + ` theme-${val}`;
       await fetch("/api/users/map-state", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1176,38 +1179,41 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                   { name: "blue", color: "#2563eb", label: "Azul" },
                   { name: "green", color: "#10b981", label: "Verde" },
                   { name: "purple", color: "#8b5cf6", label: "Morado" },
-                  { name: "dark", color: "#334155", label: "Oscuro" },
+                  { name: "dark", color: "#f97316", label: "Oscuro", bg: "#0f172a", border: "#475569" },
                   { name: "indigo", color: "#4f46e5", label: "Indigo" },
                   { name: "rose", color: "#e11d48", label: "Rosa" },
                   { name: "teal", color: "#0d9488", label: "Teal" },
                   { name: "amber", color: "#d97706", label: "Ámbar" },
                   { name: "slate", color: "#475569", label: "Pizarra" }
-                ].map((t) => (
-                  <button
-                    key={t.name}
-                    type="button"
-                    onClick={() => handleThemeChange(t.name)}
-                    title={t.label}
-                    style={{
-                      padding: "6px 2px",
-                      borderRadius: "6px",
-                      border: theme === t.name ? "2px solid var(--text-color)" : "1.5px solid var(--border-color)",
-                      background: t.name === "dark" ? "#1e293b" : "#ffffff",
-                      cursor: "pointer",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: "4px",
-                      boxShadow: theme === t.name ? "0 0 6px rgba(0,0,0,0.2)" : "none",
-                      transition: "all 0.15s"
-                    }}
-                  >
-                    <span style={{ width: "18px", height: "18px", borderRadius: "50%", background: t.color, display: "inline-block" }} />
-                    <span style={{ fontSize: "0.6rem", fontWeight: 700, color: "var(--text-color)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center" }}>
-                      {t.label}
-                    </span>
-                  </button>
-                ))}
+                ].map((t) => {
+                  const isSelected = theme === t.name;
+                  return (
+                    <button
+                      key={t.name}
+                      type="button"
+                      onClick={() => handleThemeChange(t.name)}
+                      title={t.label}
+                      style={{
+                        padding: "6px 2px",
+                        borderRadius: "8px",
+                        border: isSelected ? "2.5px solid var(--primary-color)" : "1.5px solid var(--border-color)",
+                        background: "var(--bg-color)",
+                        cursor: "pointer",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: "4px",
+                        boxShadow: isSelected ? "0 0 8px rgba(255,121,0,0.3)" : "none",
+                        transition: "all 0.15s"
+                      }}
+                    >
+                      <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: t.color, display: "inline-block", border: "1.5px solid rgba(255,255,255,0.4)", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                      <span style={{ fontSize: "0.62rem", fontWeight: isSelected ? 800 : 700, color: "var(--text-color)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center" }}>
+                        {t.label}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

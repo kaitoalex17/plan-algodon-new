@@ -149,7 +149,7 @@ body.photo-guide-page {
 }
 
 /* Temas predeterminados a nivel de página (10 Temas Premium) */
-body.theme-orange {
+:root.theme-orange, html.theme-orange, body.theme-orange {
   --primary-color: #FF7900;
   --bg-color: #f3f4f6;
   --text-color: #111827;
@@ -157,7 +157,7 @@ body.theme-orange {
   --border-color: #e5e7eb;
 }
 
-body.theme-blue {
+:root.theme-blue, html.theme-blue, body.theme-blue {
   --primary-color: #2563eb;
   --bg-color: #f0f5ff;
   --text-color: #1e293b;
@@ -165,7 +165,7 @@ body.theme-blue {
   --border-color: #dbeafe;
 }
 
-body.theme-green {
+:root.theme-green, html.theme-green, body.theme-green {
   --primary-color: #10b981;
   --bg-color: #f0fdf4;
   --text-color: #14532d;
@@ -173,7 +173,7 @@ body.theme-green {
   --border-color: #dcfce7;
 }
 
-body.theme-purple {
+:root.theme-purple, html.theme-purple, body.theme-purple {
   --primary-color: #8b5cf6;
   --bg-color: #faf5ff;
   --text-color: #3b0764;
@@ -181,16 +181,16 @@ body.theme-purple {
   --border-color: #f3e8ff;
 }
 
-body.theme-dark {
+:root.theme-dark, html.theme-dark, body.theme-dark {
   --primary-color: #f97316;
-  --bg-color: #0f172a;
+  --bg-color: #0b1120;
   --text-color: #f8fafc;
   --card-bg: #1e293b;
   --border-color: #334155;
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-body.theme-indigo {
+:root.theme-indigo, html.theme-indigo, body.theme-indigo {
   --primary-color: #4f46e5;
   --bg-color: #f5f3ff;
   --text-color: #1e1b4b;
@@ -198,7 +198,7 @@ body.theme-indigo {
   --border-color: #e0e7ff;
 }
 
-body.theme-rose {
+:root.theme-rose, html.theme-rose, body.theme-rose {
   --primary-color: #e11d48;
   --bg-color: #fff1f2;
   --text-color: #4c0519;
@@ -206,7 +206,7 @@ body.theme-rose {
   --border-color: #ffe4e6;
 }
 
-body.theme-teal {
+:root.theme-teal, html.theme-teal, body.theme-teal {
   --primary-color: #0d9488;
   --bg-color: #f0fdfa;
   --text-color: #115e59;
@@ -214,7 +214,7 @@ body.theme-teal {
   --border-color: #ccfbf1;
 }
 
-body.theme-amber {
+:root.theme-amber, html.theme-amber, body.theme-amber {
   --primary-color: #d97706;
   --bg-color: #fffbeb;
   --text-color: #78350f;
@@ -222,7 +222,7 @@ body.theme-amber {
   --border-color: #fde68a;
 }
 
-body.theme-slate {
+:root.theme-slate, html.theme-slate, body.theme-slate {
   --primary-color: #475569;
   --bg-color: #f8fafc;
   --text-color: #0f172a;

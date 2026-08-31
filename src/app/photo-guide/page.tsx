@@ -192,15 +192,20 @@ function PhotoGuideContent() {
       })
       .catch(() => {});
 
-    // Cargar y aplicar tema del usuario
+    // Cargar y aplicar tema inmediatamente desde localStorage y luego de la API
+    const savedTheme = localStorage.getItem("app_theme");
+    if (savedTheme) {
+      document.documentElement.className = document.documentElement.className.replace(/theme-\S+/g, "").trim() + ` theme-${savedTheme}`;
+      document.body.className = document.body.className.replace(/theme-\S+/g, "").trim() + ` theme-${savedTheme}`;
+    }
+
     fetch("/api/users/map-state")
       .then((r) => r.json())
       .then((data) => {
         if (data && data.theme) {
-          document.body.classList.forEach(cls => {
-            if (cls.startsWith("theme-")) document.body.classList.remove(cls);
-          });
-          document.body.classList.add(`theme-${data.theme}`);
+          localStorage.setItem("app_theme", data.theme);
+          document.documentElement.className = document.documentElement.className.replace(/theme-\S+/g, "").trim() + ` theme-${data.theme}`;
+          document.body.className = document.body.className.replace(/theme-\S+/g, "").trim() + ` theme-${data.theme}`;
         }
       })
       .catch(() => {});
@@ -860,31 +865,71 @@ function PhotoGuideContent() {
                   {/* Acciones de Foto por Categoría */}
                   <div style={{ display: "flex", gap: "6px" }}>
                     {cat.isMap ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowMapPinModal(true)}
-                        style={{
-                          background: "var(--primary-color)",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "6px",
-                          padding: "6px 10px",
-                          fontWeight: 800,
-                          fontSize: "0.74rem",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                          boxShadow: "0 1px 4px rgba(0,0,0,0.12)"
-                        }}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
-                          <line x1="8" y1="2" x2="8" y2="18" />
-                          <line x1="16" y1="6" x2="16" y2="22" />
-                        </svg>
-                        <span>Mapa Satélite</span>
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setShowMapPinModal(true)}
+                          style={{
+                            background: "var(--primary-color)",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "6px",
+                            padding: "6px 10px",
+                            fontWeight: 800,
+                            fontSize: "0.74rem",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            boxShadow: "0 1px 4px rgba(0,0,0,0.12)"
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                            <line x1="8" y1="2" x2="8" y2="18" />
+                            <line x1="16" y1="6" x2="16" y2="22" />
+                          </svg>
+                          <span>Mapa Satélite</span>
+                        </button>
+
+                        {/* Permitir también subir imagen manualmente para coordenadas */}
+                        <label
+                          style={{
+                            background: "var(--bg-color)",
+                            color: "var(--text-color)",
+                            border: "1px solid var(--border-color)",
+                            borderRadius: "6px",
+                            padding: "6px 10px",
+                            fontWeight: 800,
+                            fontSize: "0.74rem",
+                            cursor: isUploading ? "wait" : "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            opacity: isUploading ? 0.6 : 1
+                          }}
+                          title="Subir captura o foto de coordenadas manualmente"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                          </svg>
+                          <span>Subir</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={isUploading}
+                            style={{ display: "none" }}
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                handleCategoryUpload(cat.key, e.target.files[0]);
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                        </label>
+                      </>
                     ) : (
                       <>
                         {/* Botón Cámara Directa */}
