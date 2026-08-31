@@ -1,7 +1,7 @@
 "use client";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 export default function LoginPage() {
   return (
@@ -12,12 +12,26 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const isLoggedOut = searchParams.get("loggedOut") === "true";
+  const { data: session, status: authStatus } = useSession();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+
+  // Si el usuario ya está autenticado y no acaba de cerrar sesión, redirigir a la página principal
+  useEffect(() => {
+    if (authStatus === "authenticated" && !isLoggedOut) {
+      const role = (session?.user as any)?.role;
+      if (role === "GESTOR") {
+        window.location.href = "/gestion";
+      } else {
+        window.location.href = "/";
+      }
+    }
+  }, [authStatus, isLoggedOut, session]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +47,14 @@ function LoginForm() {
       window.location.href = "/";
     }
   };
+
+  if (authStatus === "authenticated" && !isLoggedOut) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6', color: '#111827', fontWeight: 700 }}>
+        Redirigiendo a tu sesión...
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6' }}>
