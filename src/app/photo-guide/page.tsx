@@ -3,6 +3,19 @@
 import { useState, useEffect, useCallback, Suspense, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import dynamic from "next/dynamic";
+
+const DraggableSatelliteMap = dynamic(
+  () => import("@/components/DraggableSatelliteMap"),
+  { 
+    ssr: false,
+    loading: () => (
+      <div style={{ height: "100%", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#020617", color: "#94a3b8", fontSize: "0.85rem", fontWeight: 700 }}>
+        Cargando Mapa Satélite...
+      </div>
+    )
+  }
+);
 
 // IndexedDB Helper para cola de subidas offline
 const openDB = (): Promise<IDBDatabase> => {
@@ -445,42 +458,52 @@ function PhotoGuideContent() {
 
       if (!ctx) throw new Error("No se pudo crear el contexto de dibujo.");
 
-      // Fondo oscuro
+      // Fondo base
       ctx.fillStyle = "#0f172a";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Intentar cargar la imagen satelital base
-      await new Promise<void>((resolve) => {
-        const bgImg = new Image();
-        bgImg.crossOrigin = "anonymous";
-        bgImg.src = `https://maps.googleapis.com/maps/api/staticmap?center=${pinCoords.lat},${pinCoords.lng}&zoom=${mapZoom}&size=600x450&scale=2&maptype=hybrid`;
-        
-        bgImg.onload = () => {
-          ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-          resolve();
-        };
-        bgImg.onerror = () => {
-          // Fallback satélite con cuadrícula
-          ctx.fillStyle = "#1e293b";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          
-          ctx.strokeStyle = "#334155";
-          ctx.lineWidth = 1;
-          for (let x = 0; x < canvas.width; x += 40) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, canvas.height);
-            ctx.stroke();
-          }
-          for (let y = 0; y < canvas.height; y += 40) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(canvas.width, y);
-            ctx.stroke();
-          }
-          resolve();
-        };
-      });
+      // Calcular tiles satélite de Google Maps (Mercator Projection)
+      const latRad = (pinCoords.lat * Math.PI) / 180;
+      const n = Math.pow(2, mapZoom);
+      const centerTileX = ((pinCoords.lng + 180) / 360) * n;
+      const centerTileY = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
+
+      const intCenterX = Math.floor(centerTileX);
+      const intCenterY = Math.floor(centerTileY);
+      const offsetX = (centerTileX - intCenterX) * 256;
+      const offsetY = (centerTileY - intCenterY) * 256;
+
+      const canvasCenterX = canvas.width / 2;
+      const canvasCenterY = canvas.height / 2;
+
+      // Cargar matriz de 5x5 tiles satélite híbridos en paralelo
+      const tilePromises: Promise<void>[] = [];
+      const tileSize = 256;
+
+      for (let dx = -3; dx <= 3; dx++) {
+        for (let dy = -3; dy <= 3; dy++) {
+          const tileX = intCenterX + dx;
+          const tileY = intCenterY + dy;
+          const posX = canvasCenterX + (dx * tileSize) - offsetX;
+          const posY = canvasCenterY + (dy * tileSize) - offsetY;
+
+          const p = new Promise<void>((resolve) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = `https://mt1.google.com/vt/lyrs=y&x=${tileX}&y=${tileY}&z=${mapZoom}`;
+            img.onload = () => {
+              try {
+                ctx.drawImage(img, posX, posY, tileSize, tileSize);
+              } catch (e) {}
+              resolve();
+            };
+            img.onerror = () => resolve();
+          });
+          tilePromises.push(p);
+        }
+      }
+
+      await Promise.all(tilePromises);
 
       // Dibujar Chincheta / Pin estilo Google Maps
       const pinX = canvas.width / 2;
@@ -1110,34 +1133,33 @@ function PhotoGuideContent() {
               </button>
             </div>
 
-            {/* Contenedor del Mapa / Visor Satélite Interactivo */}
-            <div style={{ position: "relative", width: "100%", height: "340px", background: "#020617", overflow: "hidden" }}>
-              {/* Vista Satélite de Google Maps Iframe */}
-              <iframe
-                title="Google Satellite Pin"
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                loading="lazy"
-                src={`https://maps.google.com/maps?q=${pinCoords.lat},${pinCoords.lng}&z=${mapZoom}&t=k&output=embed`}
+            {/* Contenedor del Mapa Satelital Interactivo con Chincheta Arrastrable */}
+            <div style={{ position: "relative", width: "100%", height: "360px", background: "#020617", overflow: "hidden" }}>
+              <DraggableSatelliteMap
+                lat={pinCoords.lat}
+                lng={pinCoords.lng}
+                zoom={mapZoom}
+                onPositionChange={(newPos) => setPinCoords(newPos)}
+                onZoomChange={(newZoom) => setMapZoom(newZoom)}
               />
 
-              {/* Controles de Zoom */}
-              <div style={{ position: "absolute", bottom: "16px", right: "16px", display: "flex", flexDirection: "column", gap: "6px", zIndex: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setMapZoom(prev => Math.min(prev + 1, 20))}
-                  style={{ width: "36px", height: "36px", background: "rgba(15, 23, 42, 0.9)", color: "white", border: "1px solid #334155", borderRadius: "8px", fontWeight: 900, cursor: "pointer", fontSize: "1.1rem" }}
-                >
-                  +
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMapZoom(prev => Math.max(prev - 1, 14))}
-                  style={{ width: "36px", height: "36px", background: "rgba(15, 23, 42, 0.9)", color: "white", border: "1px solid #334155", borderRadius: "8px", fontWeight: 900, cursor: "pointer", fontSize: "1.1rem" }}
-                >
-                  -
-                </button>
+              {/* Indicador de ayuda */}
+              <div style={{
+                position: "absolute",
+                bottom: "12px",
+                left: "12px",
+                background: "rgba(15, 23, 42, 0.88)",
+                color: "white",
+                padding: "6px 12px",
+                borderRadius: "8px",
+                fontSize: "0.74rem",
+                fontWeight: 700,
+                border: "1px solid #334155",
+                zIndex: 1000,
+                pointerEvents: "none",
+                backdropFilter: "blur(4px)"
+              }}>
+                👆 Arrastra la chincheta o toca en el mapa para marcar el punto exacto
               </div>
 
               {/* Botón GPS actual del dispositivo */}
