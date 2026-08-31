@@ -1888,8 +1888,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 />
               </div>
 
-              {/* Checkbox Reparos */}
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              {/* Checkbox Reparos (Comentado temporalmente) */}
+              {/* <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                 <input 
                   type="checkbox" 
                   id="isProgramadaCheckbox"
@@ -1900,7 +1900,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 <label htmlFor="isProgramadaCheckbox" style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)", cursor: "pointer" }}>
                   Reparos (Trabajo de reparación / avería)
                 </label>
-              </div>
+              </div> */}
 
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 <div style={{ display: "flex", gap: "10px" }}>
@@ -1942,8 +1942,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   {saving ? "Guardando..." : "Cerrar y Guardar (Marcar Correcto)"}
                 </button>
 
-                {/* Botón Marc. Reparo CTO debajo de Cerrar y Guardar */}
-                <button 
+                {/* Botón Marc. Reparo CTO debajo de Cerrar y Guardar (Comentado temporalmente) */}
+                {/* <button 
                   type="button"
                   onClick={handleMarcarReparo}
                   disabled={markingReparo}
@@ -1971,7 +1971,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
                   </svg>
                   {markingReparo ? "Registrando Reparación..." : "Marc. Reparo CTO"}
-                </button>
+                </button> */}
               </div>
 
               {/* COMENTARIO RÁPIDO Y MURO AL FINAL */}
