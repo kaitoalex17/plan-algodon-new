@@ -98,6 +98,15 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [cluster, setCluster] = useState("");
   
   const [loading, setLoading] = useState(false);
+  const [copiedCtoNum, setCopiedCtoNum] = useState(false);
+
+  const handleCopyCtoNum = () => {
+    if (cto?.num && navigator.clipboard) {
+      navigator.clipboard.writeText(cto.num);
+      setCopiedCtoNum(true);
+      setTimeout(() => setCopiedCtoNum(false), 2000);
+    }
+  };
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -1097,25 +1106,112 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           ✕
         </button>
         
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
-          <div>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>
-              CTO: {cto.num}
-              <span style={{ fontSize: "0.85rem", fontWeight: 600, opacity: 0.8, color: "var(--text-color)", display: "block", marginTop: "4px" }}>
+        {/* Header Rediseñado */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem", flexWrap: "wrap", gap: "10px" }}>
+          
+          {/* Lado Izquierdo: Nombre de la CTO en grande + Botón Copiar + Técnico */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <h2 style={{ fontSize: "1.65rem", fontWeight: 900, color: "var(--text-color)", margin: 0, letterSpacing: "-0.5px", lineHeight: "1.1" }}>
+                {cto.num}
+              </h2>
+              
+              {/* Botón Pequeño para Copiar Nombre de la CTO */}
+              <button
+                type="button"
+                onClick={handleCopyCtoNum}
+                title={copiedCtoNum ? "¡Copiado!" : "Copiar código de CTO"}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "3px 8px",
+                  borderRadius: "6px",
+                  background: copiedCtoNum ? "#10b981" : "var(--bg-color)",
+                  color: copiedCtoNum ? "white" : "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                  cursor: "pointer",
+                  fontSize: "0.72rem",
+                  fontWeight: 700,
+                  transition: "all 0.15s ease"
+                }}
+              >
+                {copiedCtoNum ? (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span>Copiado</span>
+                  </>
+                ) : (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    <span>Copiar</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "2px" }}>
+              <span style={{ fontSize: "0.82rem", fontWeight: 700, opacity: 0.85, color: "var(--text-color)" }}>
                 👤 {assignedToId ? (users.find(u => u.id === assignedToId)?.name || details?.assignedTo?.name || cto.assignedTo?.name || "Asignada") : "Sin asignar"}
               </span>
-            </h2>
-            <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}>
-              {cto.numeroNuevo && <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>Nº Nuevo: {cto.numeroNuevo}</span>}
-              <span style={{ fontSize: "0.75rem", background: "var(--border-color)", color: "var(--text-color)", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+              <span style={{ fontSize: "0.72rem", background: "var(--border-color)", color: "var(--text-color)", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
                 {isProgramada ? "PROGRAMADA" : "AUDITORIA"}
               </span>
+              {cto.numeroNuevo && <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>Nº Nuevo: {cto.numeroNuevo}</span>}
             </div>
           </div>
           
-          {/* Lado derecho de cabecera: Botón Compartir + Badge de Estado */}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginRight: "38px" }}>
+          {/* Lado derecho de cabecera: Subestado (con color) + Estado + Botón Compartir */}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginRight: "38px" }}>
+            
+            {/* Badge de Subestado si existe */}
+            {(() => {
+              const currentSub = subStatuses.find(s => s.id === subStatusId) || cto.subStatus || details?.subStatus;
+              if (!currentSub) return null;
+              const subColor = currentSub.color || "var(--primary-color)";
+              return (
+                <span
+                  style={{
+                    padding: "5px 10px",
+                    borderRadius: "16px",
+                    fontSize: "0.74rem",
+                    fontWeight: 800,
+                    background: `${subColor}1A`,
+                    color: subColor,
+                    border: `1.5px solid ${subColor}`,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: subColor }} />
+                  {currentSub.name}
+                </span>
+              );
+            })()}
+
+            {/* Badge de Estado General */}
+            <span style={{ 
+              padding: "5px 12px", 
+              borderRadius: "16px", 
+              fontSize: "0.78rem", 
+              fontWeight: 800,
+              background: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#d1fae5" : displayStatus === "FALLO" ? "#fee2e2" : "#fef3c7",
+              color: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#065f46" : displayStatus === "FALLO" ? "#991b1b" : "#92400e",
+              border: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "1px solid #10b981" : displayStatus === "FALLO" ? "1px solid #ef4444" : "1px solid #f59e0b",
+              whiteSpace: "nowrap"
+            }}>
+              {displayStatus}
+            </span>
+
+            {/* Botón Compartir al lado */}
             <button
               type="button"
               onClick={handleShareWhatsApp}
@@ -1124,21 +1220,22 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: "6px",
-                padding: "6px 12px",
-                minHeight: "34px",
-                borderRadius: "20px",
+                gap: "5px",
+                padding: "5px 11px",
+                minHeight: "32px",
+                borderRadius: "16px",
                 background: "var(--card-bg)",
                 color: "var(--primary-color)",
                 border: "1.5px solid var(--primary-color)",
                 cursor: "pointer",
-                fontWeight: 700,
-                fontSize: "0.78rem",
-                boxShadow: "0 2px 6px rgba(255, 121, 0, 0.15)",
-                transition: "all 0.2s ease"
+                fontWeight: 800,
+                fontSize: "0.76rem",
+                boxShadow: "0 2px 6px rgba(255, 121, 0, 0.12)",
+                transition: "all 0.2s ease",
+                whiteSpace: "nowrap"
               }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="18" cy="5" r="3" />
                 <circle cx="6" cy="12" r="3" />
                 <circle cx="18" cy="19" r="3" />
@@ -1147,14 +1244,6 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               </svg>
               <span>Compartir</span>
             </button>
-
-            <span style={{ 
-              padding: "6px 14px", borderRadius: "20px", fontSize: "0.85rem", fontWeight: 700,
-              background: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#d1fae5" : displayStatus === "FALLO" ? "#fee2e2" : "#f3f4f6",
-              color: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#065f46" : displayStatus === "FALLO" ? "#991b1b" : "#374151"
-            }}>
-              {displayStatus}
-            </span>
           </div>
         </div>
 
