@@ -4,8 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
-// PATCH: editar usuario
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// PATCH & PUT: editar usuario
+async function handleUpdateUser(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session || (session.user as any).role !== "ADMIN") {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -30,6 +30,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
 
   return NextResponse.json(user);
+}
+
+export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  return handleUpdateUser(req, context);
+}
+
+export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  return handleUpdateUser(req, context);
 }
 
 // DELETE: eliminar usuario
