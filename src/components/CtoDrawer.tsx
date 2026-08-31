@@ -1114,34 +1114,38 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
             </div>
           </div>
           
-          {/* Lado derecho de cabecera: Botón Compartir por WhatsApp + Badge de Estado */}
+          {/* Lado derecho de cabecera: Botón Compartir + Badge de Estado */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginRight: "38px" }}>
             <button
               type="button"
               onClick={handleShareWhatsApp}
-              title="Compartir CTO por WhatsApp / Copiar Enlace Directo"
+              title="Compartir CTO / Copiar Enlace Directo"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: "36px",
-                height: "36px",
-                borderRadius: "50%",
-                background: "#25D366",
-                color: "white",
-                border: "none",
+                gap: "6px",
+                padding: "6px 12px",
+                minHeight: "34px",
+                borderRadius: "20px",
+                background: "var(--card-bg)",
+                color: "var(--primary-color)",
+                border: "1.5px solid var(--primary-color)",
                 cursor: "pointer",
-                boxShadow: "0 2px 8px rgba(37, 211, 102, 0.35)",
-                transition: "all 0.15s"
+                fontWeight: 700,
+                fontSize: "0.78rem",
+                boxShadow: "0 2px 6px rgba(255, 121, 0, 0.15)",
+                transition: "all 0.2s ease"
               }}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="18" cy="5" r="3" />
                 <circle cx="6" cy="12" r="3" />
                 <circle cx="18" cy="19" r="3" />
                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
                 <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
               </svg>
+              <span>Compartir</span>
             </button>
 
             <span style={{ 
@@ -1209,19 +1213,18 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <div style={{ display: "flex", gap: "8px", marginTop: "0.5rem" }}>
                 <button 
                   type="button"
-                  onClick={() => window.open(`/photo-guide?ctoId=${cto.id}`, "_blank")}
-                  className="btn" 
-                  style={{ flex: 1, minHeight: "34px", background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", boxShadow: "0 2px 6px rgba(2,132,199,0.3)" }}
-                >
-                  📸 Guía fotográfica
-                </button>
-                <button 
-                  type="button"
                   onClick={() => window.open(`/form-guide?ctoId=${cto.id}`, "_blank")}
                   className="btn" 
                   style={{ flex: 1, minHeight: "34px", background: "#8b5cf6", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
                 >
-                  Guía formulario
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                    <polyline points="10 9 9 9 8 9" />
+                  </svg>
+                  <span>Guía formulario</span>
                 </button>
                 <button 
                   type="button"
@@ -1230,7 +1233,11 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   className="btn" 
                   style={{ flex: 1, minHeight: "34px", background: "#a855f7", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", opacity: fetchingFormSheet ? 0.7 : 1 }}
                 >
-                  {fetchingFormSheet ? "..." : "Ficha"}
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                  <span>{fetchingFormSheet ? "..." : "Ficha"}</span>
                 </button>
               </div>
 
@@ -1554,6 +1561,38 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   placeholder="Notas internas sobre esta CTO..." 
                   style={{ minHeight: "60px", padding: "8px 12px", resize: "vertical", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
                 />
+              </div>
+
+              {/* Botón de Guía Fotográfica ubicado justo antes de Evidencias Fotográficas */}
+              <div style={{ marginBottom: "1rem" }}>
+                <button 
+                  type="button"
+                  onClick={() => window.open(`/photo-guide?ctoId=${cto.id}`, "_blank")}
+                  className="btn" 
+                  style={{ 
+                    width: "100%", 
+                    minHeight: "38px", 
+                    background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", 
+                    color: "white", 
+                    fontSize: "0.85rem", 
+                    padding: "8px 14px", 
+                    fontWeight: 800, 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "center", 
+                    gap: "8px", 
+                    borderRadius: "8px",
+                    boxShadow: "0 2px 6px rgba(2,132,199,0.25)",
+                    border: "none",
+                    cursor: "pointer"
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                  <span>Guía Fotográfica de Instalación</span>
+                </button>
               </div>
 
               {/* Subida de Fotos */}
@@ -2735,7 +2774,11 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <div style={{ background: "var(--bg-color)", padding: "14px", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                   <label style={{ fontSize: "0.82rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--text-color)", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span>🔌</span> Cantidad Total de Puertos:
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                    </svg>
+                    Cantidad Total de Puertos:
                   </label>
                   <span style={{ fontSize: "0.75rem", color: "var(--primary-color)", fontWeight: 700, background: "rgba(255,121,0,0.1)", padding: "2px 8px", borderRadius: "12px" }}>
                     Capacidad seleccionada: {portsCapacity} Puertos
@@ -2784,11 +2827,17 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                         <strong style={{ fontSize: "1.25rem", color: "var(--text-color)" }}>{portsCapacity}</strong>
                       </div>
                       <div style={{ flex: 1, padding: "10px", textAlign: "center", background: "#dcfce7", borderRadius: "10px", border: "1.5px solid #86efac", boxShadow: "0 2px 6px rgba(22,163,74,0.15)" }}>
-                        <span style={{ fontSize: "0.72rem", color: "#166534", display: "block", fontWeight: 700 }}>🟢 LIBRES</span>
+                        <span style={{ fontSize: "0.72rem", color: "#166534", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", fontWeight: 700 }}>
+                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#16a34a" }} />
+                          LIBRES
+                        </span>
                         <strong style={{ fontSize: "1.25rem", color: "#166534" }}>{libCount}</strong>
                       </div>
                       <div style={{ flex: 1, padding: "10px", textAlign: "center", background: "#fee2e2", borderRadius: "10px", border: "1.5px solid #fca5a5", boxShadow: "0 2px 6px rgba(220,38,38,0.15)" }}>
-                        <span style={{ fontSize: "0.72rem", color: "#991b1b", display: "block", fontWeight: 700 }}>🔴 OCUPADOS</span>
+                        <span style={{ fontSize: "0.72rem", color: "#991b1b", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", fontWeight: 700 }}>
+                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#dc2626" }} />
+                          OCUPADOS
+                        </span>
                         <strong style={{ fontSize: "1.25rem", color: "#991b1b" }}>{occCount}</strong>
                       </div>
                     </div>
@@ -2804,7 +2853,10 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <div style={{ background: "var(--bg-color)", padding: "14px 16px", borderRadius: "14px", border: "1.5px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
                   <span style={{ fontSize: "0.8rem", color: "var(--text-color)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span>⚡</span> Relleno Rápido de Puertos ({portsCapacity} P):
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#f59e0b" }}>
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                    Relleno Rápido de Puertos ({portsCapacity} P):
                   </span>
                   <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600 }}>
                     Aplica estados a múltiples puertos con 1 clic
@@ -2835,7 +2887,10 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       transition: "all 0.15s"
                     }}
                   >
-                    🟢 Marcar TODOS como LIBRE (1 al {portsCapacity})
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Marcar TODOS como LIBRE (1 al {portsCapacity})
                   </button>
 
                   <button
@@ -2860,74 +2915,12 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       transition: "all 0.15s"
                     }}
                   >
-                    🔴 Marcar TODOS como OCUPADOS (1 al {portsCapacity})
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                    Marcar TODOS como OCUPADOS (1 al {portsCapacity})
                   </button>
-                </div>
-
-                {/* Relleno por Rango (Ocupados del 1 al X) */}
-                <div style={{ background: "var(--card-bg)", padding: "10px 12px", borderRadius: "10px", border: "1px solid var(--border-color)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
-                  <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-color)" }}>
-                    Marcar Ocupados del 1 hasta el puerto:
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    {[1, 2, 3, 4, 6, 8].filter(n => n <= portsCapacity).map(n => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => handleFillRange(n)}
-                        style={{
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border-color)",
-                          background: "var(--bg-color)",
-                          color: "var(--text-color)",
-                          fontWeight: 800,
-                          fontSize: "0.75rem",
-                          cursor: "pointer"
-                        }}
-                      >
-                        1-{n}
-                      </button>
-                    ))}
-                    <input
-                      type="number"
-                      min="0"
-                      max={portsCapacity}
-                      placeholder="#"
-                      value={fillRangeInput}
-                      onChange={e => setFillRangeInput(e.target.value)}
-                      style={{
-                        width: "48px",
-                        padding: "4px 6px",
-                        fontSize: "0.82rem",
-                        borderRadius: "6px",
-                        border: "1.5px solid var(--primary-color)",
-                        background: "var(--bg-color)",
-                        color: "var(--text-color)",
-                        textAlign: "center",
-                        fontWeight: 800
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const val = parseInt(fillRangeInput);
-                        if (!isNaN(val)) handleFillRange(val);
-                      }}
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: "6px",
-                        background: "var(--primary-color)",
-                        color: "white",
-                        fontWeight: 800,
-                        fontSize: "0.78rem",
-                        border: "none",
-                        cursor: "pointer"
-                      }}
-                    >
-                      Aplicar
-                    </button>
-                  </div>
                 </div>
               </div>
 

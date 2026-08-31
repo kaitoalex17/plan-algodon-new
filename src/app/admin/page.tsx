@@ -181,6 +181,15 @@ export default function AdminPage() {
               </svg>
               Importar CTOs (Excel)
             </Link>
+            <Link href="/admin/area-assignment" className="btn" style={{ background: 'linear-gradient(135deg, #FF7900 0%, #d97706 100%)', color: 'white', border: 'none', justifyContent: 'center', padding: '0.85rem', gap: '8px', fontWeight: 800, boxShadow: '0 4px 12px rgba(255, 121, 0, 0.3)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 19l7-7 3 3-7 7-3-3z" />
+                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+                <path d="M2 2l7.586 7.586" />
+                <circle cx="11" cy="11" r="2" />
+              </svg>
+              Reasignar por Área (Dibujo en Mapa)
+            </Link>
             <Link href="/admin/ctos" className="btn" style={{ background: 'var(--bg-color)', color: 'var(--text-color)', border: '1px solid var(--border-color)', justifyContent: 'center', padding: '0.75rem', gap: '8px' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3" />
