@@ -197,23 +197,41 @@ function MapStateAndTracking({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const firstLocationRef = useRef<boolean>(true);
 
-  // Cargar posición inicial guardada en la BD
+  // Cargar posición inicial guardada (Prioridad: localStorage inmediato -> initialMapState de la BD)
   useEffect(() => {
+    try {
+      const localLat = localStorage.getItem("saved_map_lat");
+      const localLng = localStorage.getItem("saved_map_lng");
+      const localZoom = localStorage.getItem("saved_map_zoom");
+
+      if (localLat && localLng && localZoom) {
+        map.setView([parseFloat(localLat), parseFloat(localLng)], parseInt(localZoom));
+        return;
+      }
+    } catch (e) {}
+
     if (initialMapState?.lat && initialMapState?.lng && initialMapState?.zoom) {
       map.setView([initialMapState.lat, initialMapState.lng], initialMapState.zoom);
     }
   }, [map, initialMapState]);
 
-  // Guardar la vista (lat, lng, zoom) con Debounce en la BD
+  // Guardar la vista (lat, lng, zoom) de forma instantánea en localStorage y con Debounce en la BD
   const saveMapView = () => {
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+
+    // Guardado instantáneo en localStorage (para que no se pierda aunque cierres la pestaña de inmediato)
+    try {
+      localStorage.setItem("saved_map_lat", center.lat.toString());
+      localStorage.setItem("saved_map_lng", center.lng.toString());
+      localStorage.setItem("saved_map_zoom", zoom.toString());
+    } catch (e) {}
+
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
 
     saveTimeoutRef.current = setTimeout(async () => {
-      const center = map.getCenter();
-      const zoom = map.getZoom();
-
       try {
         await fetch("/api/users/map-state", {
           method: "PATCH",
@@ -221,9 +239,9 @@ function MapStateAndTracking({
           body: JSON.stringify({ lat: center.lat, lng: center.lng, zoom })
         });
       } catch (err) {
-        console.error("Error guardando estado del mapa:", err);
+        console.error("Error guardando estado del mapa en BD:", err);
       }
-    }, 2000);
+    }, 1000);
   };
 
   useMapEvents({
