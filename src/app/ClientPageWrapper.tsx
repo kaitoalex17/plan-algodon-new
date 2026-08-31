@@ -616,9 +616,15 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               </button>
             )}
             <button 
-              onClick={() => signOut({ callbackUrl: "/login?loggedOut=true" })} 
+              onClick={async () => {
+                await signOut({ redirect: false });
+                document.cookie.split(";").forEach((c) => {
+                  document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+                });
+                window.location.href = "/login?loggedOut=true";
+              }} 
               className="btn" 
-              style={{ padding: "6px 10px", fontSize: "0.78rem", background: "#fee2e2", color: "#dc2626", minHeight: "34px", fontWeight: 600, borderRadius: "6px" }}
+              style={{ padding: "6px 10px", fontSize: "0.78rem", background: "#fee2e2", color: "#dc2626", minHeight: "34px", fontWeight: 600, borderRadius: "6px", cursor: "pointer" }}
             >
               Salir
             </button>
