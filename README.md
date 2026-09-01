@@ -8,25 +8,34 @@ La plataforma está diseñada bajo un enfoque **Mobile-First** con interfaces de
 
 ## 🌟 Características Principales
 
+### 🏠 Navegación y Botón Casa
+- **Botón Casa (Home View):** Permite memorizar la vista y nivel de zoom manteniendo presionado 5 segundos (con animación de carga y vibración) y regresar a ella con un solo toque.
+- **Inmovilización Móvil (iOS Safari):** Estructura fija en `100dvh` con eliminación de rebote de scroll para experiencia idéntica a una app nativa.
+
 ### 🗺️ Visualización de Campo Avanzada
-- **Mapas de Google Maps:** Integración de capas de Google Maps (Normal, Satélite e Híbrido) junto a OpenStreetMap.
+- **Mapas Multicapa:** Capas de Google Maps (Normal, Satélite e Híbrido), OpenStreetMap y **Modo Oscuro sin API Key** (ESRI World Dark Gray Canvas y Alto Contraste).
 - **Nivel de Zoom Extremo:** Soporte para acercar el mapa hasta el nivel `21` para ubicar CTOs a nivel de tejado con máxima precisión.
 - **Marcadores Dinámicos:** Los técnicos pueden cambiar la forma de sus marcadores (Círculo, Triángulo, Cuadrado, Rombo, Estrella) y ajustar su tamaño (de 4px a 12px) en tiempo real según sus preferencias de visibilidad.
 
-### 👤 Perfil y Temas Visuales
-- **Ajuste de Color de Página:** Incluye **10 temas de color premium** (Naranja, Azul, Verde, Morado, Oscuro, Indigo, Rosa, Teal, Ámbar, Pizarra) configurables por el usuario.
+### 👤 Perfil y Sistema de 15 Temas Visuales
+- **15 Temas de Color:** Incluye 10 temas estándar y 5 temas de **Modo Oscuro Puro** (Cyan, Verde, Violeta, Rojo, Oro) organizados en cuadrícula responsiva anti-desbordamiento.
 - **Persistencia de Preferencias:** Cada ajuste de visualización, tema y nivel de zoom mínimo se asocia y guarda en la base de datos para cada técnico.
 
-### 📋 Gestión y Auditoría de CTOs
-- **Categorías Duales:** Soporta la separación de CTOs en `"AUDITORIA"` (caja instalada) y `"PROGRAMADA"` (pendiente de instalar).
-- **Subestados Dinámicos:** Los subestados se cargan y filtran de acuerdo a la categoría de la caja, con reglas específicas y color verde de éxito para estados de revisión.
-- **Ocultación de Fibra:** Parámetros de puertos totales, ocupados y potencia (dBm) recogidos bajo un discreto botón de información `i` de **Iconoir**.
-- **Historial Completo a Pantalla Completa:** Módulo para leer el historial de auditorías y enviar comentarios instantáneos desde un muro diseñado en pantalla completa.
+### 📸 Auditoría Visual y Flujo de Reparaciones (Fase 3)
+- **Panel de Auditoría Fotográfica (`/admin/photo-audit`):** Validación masiva con **Modo Scroll** (aprobación al desplazarse) y **Modo Táctil** (interfaz gestual estilo deslizamiento).
+- **Estado REPARAR y Control de Taller (`/admin/repair`):** Supervisión de incidencias enviadas a reparación, filtros por técnico/clúster y exportación CSV.
+- **Buzón Personal de Reparaciones:** Notificaciones prioritarias con los motivos escritos por los auditores para cada técnico en campo.
 
-### ⚡ Utilidades Administrativas
-- **Importador Inteligente:** Carga masiva de CTOs desde hojas de cálculo Excel (`.xlsx`) limpiando entidades de caracteres especiales (`HTML Entities` como `&#047;` a `/`).
-- **Compresión WhatsApp HD:** Procesamiento y compresión en servidor de fotos subidas (máx 1600px en el lado más largo, 80-85% calidad) configurable por el administrador.
-- **Exportación ZIP Estructurada:** Generación de archivos ZIP descargables con todas las imágenes auditadas, estructuradas en carpetas automáticas según el número de CTO (`CTO_[num]/[num]_imagen_[idx].jpg`).
+---
+
+## 📖 Documentación Detallada (Directorio `docs/`)
+
+Para consultar la documentación técnica completa del proyecto, accede a los siguientes documentos:
+- [📚 Índice General de Documentación](./docs/README.md)
+- [📸 Auditoría Fotográfica y Reparaciones](./docs/AUDITORIA_FOTOGRAFICA_Y_REPARACIONES.md)
+- [🗺️ Mapas, Navegación y Botón Casa](./docs/MAPAS_Y_NAVEGACION.md)
+- [🎨 Sistema de 15 Temas y Diseño Responsivo](./docs/SISTEMA_DE_TEMAS.md)
+- [🗄️ Arquitectura de Datos y Base de Datos (Prisma ORM)](./docs/ARQUITECTURA_Y_DATOS.md)
 
 ---
 
