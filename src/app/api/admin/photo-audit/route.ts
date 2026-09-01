@@ -18,15 +18,19 @@ export async function GET(req: NextRequest) {
     const cluster = searchParams.get("cluster") || "";
     const search = searchParams.get("search") || "";
     const technicianId = searchParams.get("technicianId") || "";
-    const onlyWithImages = searchParams.get("onlyWithImages") !== "false"; // Por defecto true
+    const photosFilter = searchParams.get("photosFilter") || "ALL"; // ALL, WITH_PHOTOS, WITHOUT_PHOTOS
+    const onlyWithImages = searchParams.get("onlyWithImages");
 
     const skip = (page - 1) * limit;
 
     const whereClause: any = {};
 
-    if (onlyWithImages) {
+    if (photosFilter === "WITH_PHOTOS" || onlyWithImages === "true") {
       whereClause.images = { some: {} };
+    } else if (photosFilter === "WITHOUT_PHOTOS") {
+      whereClause.images = { none: {} };
     }
+    // Si photosFilter === "ALL", no se añade restricción en images para que aparezcan todas, incluso sin fotos
 
     if (statusFilter !== "ALL") {
       whereClause.status = statusFilter;
@@ -49,7 +53,7 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    const [totalCount, ctos, pendingCount, repairCount, correctCount, falloCount] = await Promise.all([
+    const [totalCount, ctos, pendingCount, repairCount, correctCount, falloCount, withoutPhotosCount] = await Promise.all([
       prisma.cTO.count({ where: whereClause }),
       prisma.cTO.findMany({
         where: whereClause,
@@ -63,10 +67,11 @@ export async function GET(req: NextRequest) {
           auditedBy: { select: { id: true, name: true, email: true, color: true } },
         }
       }),
-      prisma.cTO.count({ where: { images: { some: {} }, status: "PENDIENTE" } }),
-      prisma.cTO.count({ where: { images: { some: {} }, status: "REPARAR" } }),
-      prisma.cTO.count({ where: { images: { some: {} }, status: "CORRECTO" } }),
-      prisma.cTO.count({ where: { images: { some: {} }, status: "FALLO" } }),
+      prisma.cTO.count({ where: { status: "PENDIENTE" } }),
+      prisma.cTO.count({ where: { status: "REPARAR" } }),
+      prisma.cTO.count({ where: { status: "CORRECTO" } }),
+      prisma.cTO.count({ where: { status: "FALLO" } }),
+      prisma.cTO.count({ where: { images: { none: {} } } }),
     ]);
 
     // Obtener lista de clústeres disponibles para filtros
@@ -97,7 +102,8 @@ export async function GET(req: NextRequest) {
         pendingCount,
         repairCount,
         correctCount,
-        falloCount
+        falloCount,
+        withoutPhotosCount
       }
     });
   } catch (error: any) {

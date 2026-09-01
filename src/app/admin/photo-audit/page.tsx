@@ -35,24 +35,24 @@ type AuditCTO = {
 export function getPhotoCategoryInfo(url: string) {
   const lower = (url || "").toLowerCase();
   if (lower.includes("entorno")) {
-    return { name: "Entorno de la Instalación", icon: "🏠", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.15)" };
+    return { key: "entorno", name: "Entorno de la Instalación", icon: "🏠", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.15)" };
   }
   if (lower.includes("cto_abierta") || lower.includes("interior") || lower.includes("abierta")) {
-    return { name: "CTO Abierta (Interior)", icon: "🗄️", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.15)" };
+    return { key: "cto_abierta", name: "CTO Abierta (Interior)", icon: "🗄️", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.15)" };
   }
   if (lower.includes("etiquetado_cto") || lower.includes("etiqueta_cto")) {
-    return { name: "Etiquetado CTO", icon: "🏷️", color: "#ec4899", bg: "rgba(236, 72, 153, 0.15)" };
+    return { key: "etiquetado_cto", name: "Etiquetado CTO", icon: "🏷️", color: "#ec4899", bg: "rgba(236, 72, 153, 0.15)" };
   }
   if (lower.includes("etiquetado_cableado") || lower.includes("cableado") || lower.includes("etiqueta_cable")) {
-    return { name: "Etiquetado Cableado", icon: "⚡", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.15)" };
+    return { key: "etiquetado_cableado", name: "Etiquetado Cableado", icon: "⚡", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.15)" };
   }
-  if (lower.includes("potencia")) {
-    return { name: "Comprobación de Potencia", icon: "💡", color: "#10b981", bg: "rgba(16, 185, 129, 0.15)" };
+  if (lower.includes("potencia") || lower.includes("laser") || lower.includes("dbm")) {
+    return { key: "potencia", name: "Comprobación de Potencia", icon: "💡", color: "#10b981", bg: "rgba(16, 185, 129, 0.15)" };
   }
-  if (lower.includes("coordenadas") || lower.includes("mapa")) {
-    return { name: "Coordenadas y Mapa", icon: "📍", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.15)" };
+  if (lower.includes("coordenadas") || lower.includes("mapa") || lower.includes("satelite") || lower.includes("satellite")) {
+    return { key: "coordenadas", name: "Coordenadas y Mapa", icon: "📍", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.15)" };
   }
-  return { name: "Otras Evidencias / Detalle", icon: "📷", color: "#94a3b8", bg: "rgba(148, 163, 184, 0.15)" };
+  return { key: "otras", name: "Otras Evidencias / Detalle", icon: "📷", color: "#94a3b8", bg: "rgba(148, 163, 184, 0.15)" };
 }
 
 export default function PhotoAuditPage() {
@@ -66,8 +66,9 @@ export default function PhotoAuditPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Filtros
+  // Filtros de Estado y Servidor
   const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, CORRECTO, FALLO, PENDIENTE, REPARAR
+  const [photosFilter, setPhotosFilter] = useState("ALL"); // ALL (incluso sin fotos), WITH_PHOTOS, WITHOUT_PHOTOS
   const [selectedCluster, setSelectedCluster] = useState("");
   const [selectedTechnician, setSelectedTechnician] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -77,8 +78,19 @@ export default function PhotoAuditPage() {
     pendingCount: 0,
     repairCount: 0,
     correctCount: 0,
-    falloCount: 0
+    falloCount: 0,
+    withoutPhotosCount: 0
   });
+
+  // Filtro por Categoría de Foto (Ver solo potencia, solo entorno, etc.)
+  const [selectedCategory, setSelectedCategory] = useState("ALL");
+  const [hideWithoutCategory, setHideWithoutCategory] = useState(false);
+
+  // Auto-auditoría por scroll (Al scrollear las que quedan arriba se validan automáticamente)
+  const [autoAuditOnScroll, setAutoAuditOnScroll] = useState(true);
+  const [autoAuditedCount, setAutoAuditedCount] = useState(0);
+  const processedCtoIds = useRef<Set<string>>(new Set());
+  const autoAuditObserver = useRef<IntersectionObserver | null>(null);
 
   // Aprobación individual de fotos en memoria
   const [approvedImages, setApprovedImages] = useState<Record<string, boolean>>({});
@@ -102,6 +114,56 @@ export default function PhotoAuditPage() {
   // Estado de acción en curso por CTO
   const [updatingCtoId, setUpdatingCtoId] = useState<string | null>(null);
 
+  // Inicializar IntersectionObserver para la auto-auditoría al dejar cajas arriba
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    autoAuditObserver.current = new IntersectionObserver((entries) => {
+      if (!autoAuditOnScroll) return;
+
+      entries.forEach(entry => {
+        // La tarjeta ha salido completamente por la parte superior de la pantalla
+        if (!entry.isIntersecting && entry.boundingClientRect.bottom < 0) {
+          const ctoId = entry.target.getAttribute("data-cto-id");
+          const ctoStatus = entry.target.getAttribute("data-cto-status");
+          const imagesCount = parseInt(entry.target.getAttribute("data-cto-images") || "0");
+
+          // Solo auto-aprobar cajas en PENDIENTE que tengan al menos 1 foto y no se hayan procesado ya
+          if (ctoId && ctoStatus === "PENDIENTE" && imagesCount > 0 && !processedCtoIds.current.has(ctoId)) {
+            processedCtoIds.current.add(ctoId);
+
+            // Actualización optimista en interfaz
+            setCtos(prev => prev.map(c => c.id === ctoId ? { ...c, status: "CORRECTO" as const } : c));
+            setAutoAuditedCount(prev => prev + 1);
+
+            // Enviar aprobación al backend
+            fetch("/api/admin/photo-audit", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ctoId,
+                newStatus: "CORRECTO",
+                reason: "Auto-validada por scroll de auditoría rápida"
+              })
+            }).catch(e => console.error("Error en auto-auditoría por scroll:", e));
+          }
+        }
+      });
+    }, {
+      threshold: 0
+    });
+
+    return () => {
+      if (autoAuditObserver.current) autoAuditObserver.current.disconnect();
+    };
+  }, [autoAuditOnScroll]);
+
+  const registerAutoAuditNode = useCallback((node: HTMLDivElement | null) => {
+    if (node && autoAuditObserver.current) {
+      autoAuditObserver.current.observe(node);
+    }
+  }, []);
+
   useEffect(() => {
     if (authStatus === "authenticated") {
       const role = (session?.user as any)?.role;
@@ -113,7 +175,7 @@ export default function PhotoAuditPage() {
     } else if (authStatus === "unauthenticated") {
       router.push("/login");
     }
-  }, [authStatus, session, router, statusFilter, selectedCluster, selectedTechnician]);
+  }, [authStatus, session, router, statusFilter, photosFilter, selectedCluster, selectedTechnician]);
 
   const loadCtos = async (targetPage: number, reset = false) => {
     if (loading) return;
@@ -126,7 +188,7 @@ export default function PhotoAuditPage() {
         cluster: selectedCluster,
         technicianId: selectedTechnician,
         search: searchTerm,
-        onlyWithImages: "true"
+        photosFilter: photosFilter
       });
 
       const res = await fetch(`/api/admin/photo-audit?${params.toString()}`);
@@ -298,9 +360,33 @@ export default function PhotoAuditPage() {
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            {/* Botón Switch Auto-Auditoría al Scroll */}
+            <button
+              type="button"
+              onClick={() => setAutoAuditOnScroll(!autoAuditOnScroll)}
+              style={{
+                background: autoAuditOnScroll ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.05)",
+                color: autoAuditOnScroll ? "#10b981" : "#94a3b8",
+                border: autoAuditOnScroll ? "1.5px solid #10b981" : "1px solid var(--border-color)",
+                borderRadius: "8px",
+                padding: "6px 12px",
+                fontSize: "0.8rem",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                transition: "all 0.2s"
+              }}
+              title="Al hacer scroll hacia abajo, las cajas que quedan arriba se validan como correctas automáticamente"
+            >
+              <span>⚡</span>
+              <span>Auto-auditar al scroll: {autoAuditOnScroll ? "ACTIVADO" : "DESACTIVADO"}</span>
+            </button>
+
             <span style={{ fontSize: "0.85rem", fontWeight: 700, background: "rgba(255, 121, 0, 0.15)", color: "var(--primary-color)", padding: "6px 12px", borderRadius: "8px" }}>
-              {totalCount} CTOs Mostradas
+              {totalCount} CTOs
             </span>
           </div>
         </div>
@@ -325,7 +411,7 @@ export default function PhotoAuditPage() {
                 {stats.pendingCount === 1 ? "Queda 1 caja con fotos pendientes de auditar" : `Quedan ${stats.pendingCount} cajas con fotos pendientes de auditar`}
               </h3>
               <p style={{ margin: 0, fontSize: "0.78rem", opacity: 0.75 }}>
-                {stats.repairCount} en taller a reparar • {stats.correctCount} aprobadas bien • {stats.falloCount} con fallo
+                {stats.repairCount} en taller a reparar • {stats.correctCount} aprobadas • {stats.falloCount} con fallo • {stats.withoutPhotosCount || 0} sin fotos
               </p>
             </div>
           </div>
@@ -373,113 +459,234 @@ export default function PhotoAuditPage() {
                 Ver A Reparar ({stats.repairCount})
               </button>
             )}
+            {stats.withoutPhotosCount > 0 && photosFilter !== "WITHOUT_PHOTOS" && (
+              <button
+                type="button"
+                onClick={() => { setPhotosFilter("WITHOUT_PHOTOS"); setPage(1); }}
+                style={{
+                  background: "rgba(239, 68, 68, 0.15)",
+                  color: "#ef4444",
+                  border: "1px solid #ef4444",
+                  borderRadius: "8px",
+                  padding: "6px 14px",
+                  fontWeight: 800,
+                  fontSize: "0.82rem",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px"
+                }}
+              >
+                ⚠️ Ver Sin Fotos ({stats.withoutPhotosCount})
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Barra de Filtros */}
-        <div style={{ background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, #334155)", borderRadius: "12px", padding: "12px 16px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+        {/* Barra de Filtros Completa */}
+        <div style={{ background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, #334155)", borderRadius: "12px", padding: "14px 16px", marginBottom: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>
           
-          {/* Selector de Estado */}
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            <button
-              onClick={() => { setStatusFilter("ALL"); setPage(1); }}
-              style={{
-                padding: "6px 12px", borderRadius: "8px", border: "none", fontSize: "0.82rem", fontWeight: 800, cursor: "pointer",
-                background: statusFilter === "ALL" ? "var(--primary-color)" : "var(--bg-color)",
-                color: statusFilter === "ALL" ? "white" : "var(--text-color)"
-              }}
-            >
-              Todas
-            </button>
-            <button
-              onClick={() => { setStatusFilter("PENDIENTE"); setPage(1); }}
-              style={{
-                padding: "6px 12px", borderRadius: "8px", border: "none", fontSize: "0.82rem", fontWeight: 800, cursor: "pointer",
-                background: statusFilter === "PENDIENTE" ? "#f59e0b" : "var(--bg-color)",
-                color: statusFilter === "PENDIENTE" ? "white" : "var(--text-color)"
-              }}
-            >
-              ⏳ Pendientes ({stats.pendingCount})
-            </button>
-            <button
-              onClick={() => { setStatusFilter("REPARAR"); setPage(1); }}
-              style={{
-                padding: "6px 12px", borderRadius: "8px", border: "none", fontSize: "0.82rem", fontWeight: 800, cursor: "pointer",
-                background: statusFilter === "REPARAR" ? "#8b5cf6" : "var(--bg-color)",
-                color: statusFilter === "REPARAR" ? "white" : "var(--text-color)"
-              }}
-            >
-              A Reparar ({stats.repairCount})
-            </button>
-            <button
-              onClick={() => { setStatusFilter("CORRECTO"); setPage(1); }}
-              style={{
-                padding: "6px 12px", borderRadius: "8px", border: "none", fontSize: "0.82rem", fontWeight: 800, cursor: "pointer",
-                background: statusFilter === "CORRECTO" ? "#10b981" : "var(--bg-color)",
-                color: statusFilter === "CORRECTO" ? "white" : "var(--text-color)"
-              }}
-            >
-              ✓ Correctas ({stats.correctCount})
-            </button>
-            <button
-              onClick={() => { setStatusFilter("FALLO"); setPage(1); }}
-              style={{
-                padding: "6px 12px", borderRadius: "8px", border: "none", fontSize: "0.82rem", fontWeight: 800, cursor: "pointer",
-                background: statusFilter === "FALLO" ? "#ef4444" : "var(--bg-color)",
-                color: statusFilter === "FALLO" ? "white" : "var(--text-color)"
-              }}
-            >
-              ✕ Fallo ({stats.falloCount})
-            </button>
+          {/* Fila 1: Filtro de Estado General y Presencia de Fotos */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+            {/* Selector de Estado */}
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              <button
+                onClick={() => { setStatusFilter("ALL"); setPage(1); }}
+                style={{
+                  padding: "6px 12px", borderRadius: "8px", border: "none", fontSize: "0.82rem", fontWeight: 800, cursor: "pointer",
+                  background: statusFilter === "ALL" ? "var(--primary-color)" : "var(--bg-color)",
+                  color: statusFilter === "ALL" ? "white" : "var(--text-color)"
+                }}
+              >
+                Todas
+              </button>
+              <button
+                onClick={() => { setStatusFilter("PENDIENTE"); setPage(1); }}
+                style={{
+                  padding: "6px 12px", borderRadius: "8px", border: "none", fontSize: "0.82rem", fontWeight: 800, cursor: "pointer",
+                  background: statusFilter === "PENDIENTE" ? "#f59e0b" : "var(--bg-color)",
+                  color: statusFilter === "PENDIENTE" ? "white" : "var(--text-color)"
+                }}
+              >
+                ⏳ Pendientes ({stats.pendingCount})
+              </button>
+              <button
+                onClick={() => { setStatusFilter("REPARAR"); setPage(1); }}
+                style={{
+                  padding: "6px 12px", borderRadius: "8px", border: "none", fontSize: "0.82rem", fontWeight: 800, cursor: "pointer",
+                  background: statusFilter === "REPARAR" ? "#8b5cf6" : "var(--bg-color)",
+                  color: statusFilter === "REPARAR" ? "white" : "var(--text-color)"
+                }}
+              >
+                A Reparar ({stats.repairCount})
+              </button>
+              <button
+                onClick={() => { setStatusFilter("CORRECTO"); setPage(1); }}
+                style={{
+                  padding: "6px 12px", borderRadius: "8px", border: "none", fontSize: "0.82rem", fontWeight: 800, cursor: "pointer",
+                  background: statusFilter === "CORRECTO" ? "#10b981" : "var(--bg-color)",
+                  color: statusFilter === "CORRECTO" ? "white" : "var(--text-color)"
+                }}
+              >
+                ✓ Correctas ({stats.correctCount})
+              </button>
+              <button
+                onClick={() => { setStatusFilter("FALLO"); setPage(1); }}
+                style={{
+                  padding: "6px 12px", borderRadius: "8px", border: "none", fontSize: "0.82rem", fontWeight: 800, cursor: "pointer",
+                  background: statusFilter === "FALLO" ? "#ef4444" : "var(--bg-color)",
+                  color: statusFilter === "FALLO" ? "white" : "var(--text-color)"
+                }}
+              >
+                ✕ Fallo ({stats.falloCount})
+              </button>
+            </div>
+
+            {/* Filtro de Presencia de Fotos (Todas, Con fotos, Sin fotos) */}
+            <div style={{ display: "flex", gap: "6px", alignItems: "center", background: "var(--bg-color)", padding: "3px 6px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "0.72rem", fontWeight: 800, opacity: 0.7, marginRight: "2px" }}>Fotos:</span>
+              <button
+                type="button"
+                onClick={() => { setPhotosFilter("ALL"); setPage(1); }}
+                style={{
+                  padding: "4px 8px", borderRadius: "6px", border: "none", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer",
+                  background: photosFilter === "ALL" ? "var(--primary-color)" : "transparent",
+                  color: photosFilter === "ALL" ? "white" : "var(--text-color)"
+                }}
+              >
+                Todas
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPhotosFilter("WITH_PHOTOS"); setPage(1); }}
+                style={{
+                  padding: "4px 8px", borderRadius: "6px", border: "none", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer",
+                  background: photosFilter === "WITH_PHOTOS" ? "#10b981" : "transparent",
+                  color: photosFilter === "WITH_PHOTOS" ? "white" : "var(--text-color)"
+                }}
+              >
+                Con fotos
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPhotosFilter("WITHOUT_PHOTOS"); setPage(1); }}
+                style={{
+                  padding: "4px 8px", borderRadius: "6px", border: "none", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer",
+                  background: photosFilter === "WITHOUT_PHOTOS" ? "#ef4444" : "transparent",
+                  color: photosFilter === "WITHOUT_PHOTOS" ? "white" : "var(--text-color)"
+                }}
+              >
+                Sin fotos ({stats.withoutPhotosCount || 0})
+              </button>
+            </div>
           </div>
 
-          {/* Filtro por Técnico, Clúster y Búsqueda */}
-          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            
-            {/* Selector de Técnico */}
-            {technicians.length > 0 && (
-              <select
-                value={selectedTechnician}
-                onChange={(e) => { setSelectedTechnician(e.target.value); setPage(1); }}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border-color)",
-                  background: "var(--bg-color)",
-                  color: "var(--text-color)",
-                  fontSize: "0.82rem",
-                  fontWeight: 700
-                }}
-              >
-                <option value="">👥 Todos los Técnicos</option>
-                {technicians.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.name || t.email}
-                  </option>
-                ))}
-              </select>
-            )}
+          {/* Fila 2: Organizador por Categoría de Foto (Ver solo potencia, solo entorno, etc.) */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "10px" }}>
+            <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--primary-color)", display: "flex", alignItems: "center", gap: "4px" }}>
+              <span>🔍</span> Ver solo categoría:
+            </span>
 
-            {clusters.length > 0 && (
-              <select
-                value={selectedCluster}
-                onChange={(e) => { setSelectedCluster(e.target.value); setPage(1); }}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border-color)",
-                  background: "var(--bg-color)",
-                  color: "var(--text-color)",
-                  fontSize: "0.82rem",
-                  fontWeight: 700
-                }}
-              >
-                <option value="">Todos los Clústeres</option>
-                {clusters.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", flex: 1 }}>
+              {[
+                { key: "ALL", label: "Todas las Categorías", icon: "🖼️" },
+                { key: "potencia", label: "Solo Potencia", icon: "💡" },
+                { key: "entorno", label: "Solo Entorno", icon: "🏠" },
+                { key: "cto_abierta", label: "Solo CTO Abierta", icon: "🗄️" },
+                { key: "etiquetado_cto", label: "Solo Etiquetado CTO", icon: "🏷️" },
+                { key: "etiquetado_cableado", label: "Solo Cable", icon: "⚡" },
+                { key: "coordenadas", label: "Solo Coordenadas", icon: "📍" },
+                { key: "otras", label: "Solo Otras", icon: "📷" },
+              ].map(cat => {
+                const isActive = selectedCategory === cat.key;
+                return (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat.key)}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: "6px",
+                      border: isActive ? "1px solid var(--primary-color)" : "1px solid rgba(255,255,255,0.1)",
+                      background: isActive ? "rgba(255, 121, 0, 0.2)" : "var(--bg-color)",
+                      color: isActive ? "var(--primary-color)" : "var(--text-color)",
+                      fontSize: "0.76rem",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      transition: "all 0.15s"
+                    }}
+                  >
+                    <span>{cat.icon}</span> {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedCategory !== "ALL" && (
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.76rem", cursor: "pointer", opacity: 0.85 }}>
+                <input
+                  type="checkbox"
+                  checked={hideWithoutCategory}
+                  onChange={(e) => setHideWithoutCategory(e.target.checked)}
+                  style={{ cursor: "pointer" }}
+                />
+                Ocultar cajas sin esta foto
+              </label>
             )}
+          </div>
+
+          {/* Fila 3: Filtro por Técnico, Clúster y Buscador */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "10px" }}>
+            
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+              {/* Selector de Técnico */}
+              {technicians.length > 0 && (
+                <select
+                  value={selectedTechnician}
+                  onChange={(e) => { setSelectedTechnician(e.target.value); setPage(1); }}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border-color)",
+                    background: "var(--bg-color)",
+                    color: "var(--text-color)",
+                    fontSize: "0.82rem",
+                    fontWeight: 700
+                  }}
+                >
+                  <option value="">👥 Todos los Técnicos</option>
+                  {technicians.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name || t.email}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {clusters.length > 0 && (
+                <select
+                  value={selectedCluster}
+                  onChange={(e) => { setSelectedCluster(e.target.value); setPage(1); }}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border-color)",
+                    background: "var(--bg-color)",
+                    color: "var(--text-color)",
+                    fontSize: "0.82rem",
+                    fontWeight: 700
+                  }}
+                >
+                  <option value="">Todos los Clústeres</option>
+                  {clusters.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              )}
+            </div>
 
             <form onSubmit={(e) => { e.preventDefault(); loadCtos(1, true); }} style={{ display: "flex", gap: "6px" }}>
               <input
@@ -513,6 +720,7 @@ export default function PhotoAuditPage() {
                 Buscar
               </button>
             </form>
+
           </div>
 
         </div>
@@ -524,7 +732,7 @@ export default function PhotoAuditPage() {
           </div>
         ) : ctos.length === 0 ? (
           <div style={{ background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px", padding: "3rem", textAlign: "center", color: "#64748b" }}>
-            No se encontraron CTOs con fotos bajo los filtros seleccionados.
+            No se encontraron CTOs bajo los filtros seleccionados.
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -532,10 +740,26 @@ export default function PhotoAuditPage() {
               const isLast = index === ctos.length - 1;
               const isUpdating = updatingCtoId === cto.id;
 
+              // Filtrar fotos según categoría seleccionada
+              const visibleImages = selectedCategory === "ALL"
+                ? cto.images
+                : cto.images.filter(img => getPhotoCategoryInfo(img.url).key === selectedCategory);
+
+              // Ocultar si el usuario marcó la opción de ocultar cajas sin esta foto
+              if (hideWithoutCategory && selectedCategory !== "ALL" && visibleImages.length === 0) {
+                return null;
+              }
+
               return (
                 <div
                   key={cto.id}
-                  ref={isLast ? lastElementRef : null}
+                  ref={(el) => {
+                    if (isLast) lastElementRef(el);
+                    registerAutoAuditNode(el);
+                  }}
+                  data-cto-id={cto.id}
+                  data-cto-status={cto.status}
+                  data-cto-images={cto.images.length}
                   style={{
                     background: "var(--card-bg, #1e293b)",
                     border: `1.5px solid ${
@@ -580,6 +804,11 @@ export default function PhotoAuditPage() {
                           {cto.assignedTo.name}
                         </span>
                       )}
+
+                      {/* Conteo de fotos */}
+                      <span style={{ fontSize: "0.74rem", opacity: 0.7 }}>
+                        {cto.images.length === 0 ? "⚠️ Sin fotos" : `${cto.images.length} fotos`}
+                      </span>
 
                       {/* Badge de Estado Actual */}
                       <span style={{
@@ -702,163 +931,252 @@ export default function PhotoAuditPage() {
 
                   </div>
 
-                  {/* Visor Grande de Fotos Tipo Feed (Instagram / Facebook) */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "4px" }}>
-                    
-                    {cto.images.map((img, idx) => {
-                      const cat = getPhotoCategoryInfo(img.url);
-                      const isApproved = !!approvedImages[img.id];
-
-                      return (
-                        <div
-                          key={img.id}
+                  {/* CASO 1: CTO SIN FOTOS SUBIDAS TODAVÍA */}
+                  {cto.images.length === 0 ? (
+                    <div style={{
+                      padding: "16px 18px",
+                      background: "rgba(245, 158, 11, 0.08)",
+                      border: "1.5px dashed rgba(245, 158, 11, 0.4)",
+                      borderRadius: "12px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: "12px"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <span style={{ fontSize: "1.8rem" }}>⚠️</span>
+                        <div>
+                          <strong style={{ fontSize: "0.92rem", color: "#f59e0b", display: "block" }}>
+                            CTO sin evidencias fotográficas registradas
+                          </strong>
+                          <span style={{ fontSize: "0.78rem", opacity: 0.75 }}>
+                            Esta caja no cuenta con fotos subidas por el técnico.
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <Link
+                          href={`/photo-guide?ctoId=${encodeURIComponent(cto.id)}`}
+                          target="_blank"
                           style={{
-                            background: "#050811",
-                            borderRadius: "12px",
-                            overflow: "hidden",
-                            border: isApproved
-                              ? "2px solid #10b981"
-                              : "1px solid rgba(255,255,255,0.08)",
-                            boxShadow: isApproved
-                              ? "0 4px 18px rgba(16,185,129,0.25)"
-                              : "0 4px 14px rgba(0,0,0,0.25)",
-                            transition: "all 0.2s ease"
+                            background: "#f59e0b",
+                            color: "white",
+                            borderRadius: "8px",
+                            padding: "6px 14px",
+                            fontSize: "0.8rem",
+                            fontWeight: 800,
+                            textDecoration: "none"
                           }}
                         >
-                          {/* Cabecera de la Foto: Identificación de Categoría Real y Botones de Pulgar */}
-                          <div style={{
-                            padding: "10px 14px",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            background: "rgba(255,255,255,0.03)",
-                            borderBottom: "1px solid rgba(255,255,255,0.06)",
-                            flexWrap: "wrap",
-                            gap: "8px"
-                          }}>
-                            {/* Categoría Detectada */}
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <span style={{
-                                fontSize: "0.82rem",
-                                fontWeight: 800,
-                                padding: "4px 10px",
-                                borderRadius: "6px",
-                                background: cat.bg,
-                                color: cat.color,
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "6px"
-                              }}>
-                                <span>{cat.icon}</span> {cat.name}
-                              </span>
-                              <span style={{ fontSize: "0.74rem", opacity: 0.6 }}>
-                                Foto {idx + 1} de {cto.images.length}
-                              </span>
-                            </div>
+                          Abrir Guía Fotográfica
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateStatus(cto.id, "REPARAR", "Falta tomar evidencias fotográficas")}
+                          style={{
+                            background: "rgba(139, 92, 246, 0.2)",
+                            color: "#8b5cf6",
+                            border: "1px solid #8b5cf6",
+                            borderRadius: "8px",
+                            padding: "6px 14px",
+                            fontSize: "0.8rem",
+                            fontWeight: 800,
+                            cursor: "pointer"
+                          }}
+                        >
+                          Mandar a Reparar
+                        </button>
+                      </div>
+                    </div>
+                  ) : visibleImages.length === 0 ? (
+                    /* CASO 2: TIENE FOTOS PERO NO DE LA CATEGORÍA FILTRADA */
+                    <div style={{
+                      padding: "12px 16px",
+                      background: "rgba(255, 255, 255, 0.03)",
+                      border: "1px solid rgba(255, 255, 255, 0.08)",
+                      borderRadius: "10px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: "8px"
+                    }}>
+                      <span style={{ fontSize: "0.82rem", opacity: 0.8 }}>
+                        ℹ️ Esta CTO no tiene fotos de la categoría seleccionada (cuenta con {cto.images.length} fotos en otras categorías).
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCategory("ALL")}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "var(--primary-color)",
+                          fontSize: "0.8rem",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          textDecoration: "underline"
+                        }}
+                      >
+                        Ver todas sus fotos
+                      </button>
+                    </div>
+                  ) : (
+                    /* CASO 3: FEED DE FOTOS GRANDES */
+                    <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "4px" }}>
+                      {visibleImages.map((img, idx) => {
+                        const cat = getPhotoCategoryInfo(img.url);
+                        const isApproved = !!approvedImages[img.id];
 
-                            {/* Acciones de Voto por Foto: Pulgar Arriba / Pulgar Abajo / Lupa */}
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                              {/* Pulgar Arriba: Aprobar foto */}
-                              <button
-                                type="button"
-                                onClick={() => toggleApproveImage(img.id)}
-                                title="Aprobar esta evidencia"
-                                style={{
-                                  background: isApproved ? "#10b981" : "rgba(16, 185, 129, 0.15)",
-                                  color: isApproved ? "white" : "#10b981",
-                                  border: "1.5px solid #10b981",
-                                  borderRadius: "8px",
-                                  padding: "5px 11px",
-                                  fontSize: "0.8rem",
-                                  fontWeight: 800,
-                                  cursor: "pointer",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "5px",
-                                  transition: "all 0.15s"
-                                }}
-                              >
-                                <span>👍</span> {isApproved ? "✓ Aprobada" : "Aprobar"}
-                              </button>
-
-                              {/* Pulgar Abajo: Rechazar y mandar a reparar con motivo */}
-                              <button
-                                type="button"
-                                onClick={() => openRejectModal(cto, img.id, cat.name)}
-                                title="Rechazar esta foto y enviar a reparar al buzón"
-                                style={{
-                                  background: "rgba(239, 68, 68, 0.15)",
-                                  color: "#ef4444",
-                                  border: "1.5px solid #ef4444",
-                                  borderRadius: "8px",
-                                  padding: "5px 11px",
-                                  fontSize: "0.8rem",
-                                  fontWeight: 800,
-                                  cursor: "pointer",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "5px",
-                                  transition: "all 0.15s"
-                                }}
-                              >
-                                <span>👎</span> Rechazar
-                              </button>
-
-                              {/* Botón Lupa */}
-                              <button
-                                type="button"
-                                onClick={() => openZoom(img.url, cto, idx)}
-                                style={{
-                                  background: "rgba(255,255,255,0.1)",
-                                  color: "white",
-                                  border: "none",
-                                  borderRadius: "8px",
-                                  padding: "5px 10px",
-                                  fontSize: "0.78rem",
-                                  fontWeight: 700,
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "4px"
-                                }}
-                              >
-                                <span>🔍</span> Lupa
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Imagen Grande en Alta Definición */}
+                        return (
                           <div
-                            onClick={() => openZoom(img.url, cto, idx)}
-                            title="Haz clic para inspeccionar con lupa y zoom"
+                            key={img.id}
                             style={{
-                              position: "relative",
-                              width: "100%",
-                              maxHeight: "560px",
-                              minHeight: "260px",
-                              background: "#000",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              cursor: "zoom-in",
-                              overflow: "hidden"
+                              background: "#050811",
+                              borderRadius: "12px",
+                              overflow: "hidden",
+                              border: isApproved
+                                ? "2px solid #10b981"
+                                : "1px solid rgba(255,255,255,0.08)",
+                              boxShadow: isApproved
+                                ? "0 4px 18px rgba(16,185,129,0.25)"
+                                : "0 4px 14px rgba(0,0,0,0.25)",
+                              transition: "all 0.2s ease"
                             }}
                           >
-                            <img
-                              src={img.url}
-                              alt={`${cat.name} ${cto.num}`}
-                              loading="lazy"
+                            {/* Cabecera de la Foto: Identificación de Categoría Real y Botones de Pulgar */}
+                            <div style={{
+                              padding: "10px 14px",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              background: "rgba(255,255,255,0.03)",
+                              borderBottom: "1px solid rgba(255,255,255,0.06)",
+                              flexWrap: "wrap",
+                              gap: "8px"
+                            }}>
+                              {/* Categoría Detectada */}
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <span style={{
+                                  fontSize: "0.82rem",
+                                  fontWeight: 800,
+                                  padding: "4px 10px",
+                                  borderRadius: "6px",
+                                  background: cat.bg,
+                                  color: cat.color,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "6px"
+                                }}>
+                                  <span>{cat.icon}</span> {cat.name}
+                                </span>
+                                <span style={{ fontSize: "0.74rem", opacity: 0.6 }}>
+                                  Foto {idx + 1} de {visibleImages.length}
+                                </span>
+                              </div>
+
+                              {/* Acciones de Voto por Foto: Pulgar Arriba / Pulgar Abajo / Lupa */}
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleApproveImage(img.id)}
+                                  title="Aprobar esta evidencia"
+                                  style={{
+                                    background: isApproved ? "#10b981" : "rgba(16, 185, 129, 0.15)",
+                                    color: isApproved ? "white" : "#10b981",
+                                    border: "1.5px solid #10b981",
+                                    borderRadius: "8px",
+                                    padding: "5px 11px",
+                                    fontSize: "0.8rem",
+                                    fontWeight: 800,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "5px",
+                                    transition: "all 0.15s"
+                                  }}
+                                >
+                                  <span>👍</span> {isApproved ? "✓ Aprobada" : "Aprobar"}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => openRejectModal(cto, img.id, cat.name)}
+                                  title="Rechazar esta foto y enviar a reparar al buzón"
+                                  style={{
+                                    background: "rgba(239, 68, 68, 0.15)",
+                                    color: "#ef4444",
+                                    border: "1.5px solid #ef4444",
+                                    borderRadius: "8px",
+                                    padding: "5px 11px",
+                                    fontSize: "0.8rem",
+                                    fontWeight: 800,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "5px",
+                                    transition: "all 0.15s"
+                                  }}
+                                >
+                                  <span>👎</span> Rechazar
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => openZoom(img.url, cto, idx)}
+                                  style={{
+                                    background: "rgba(255,255,255,0.1)",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "8px",
+                                    padding: "5px 10px",
+                                    fontSize: "0.78rem",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "4px"
+                                  }}
+                                >
+                                  <span>🔍</span> Lupa
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Imagen Grande en Alta Definición */}
+                            <div
+                              onClick={() => openZoom(img.url, cto, idx)}
+                              title="Haz clic para inspeccionar con lupa y zoom"
                               style={{
+                                position: "relative",
                                 width: "100%",
                                 maxHeight: "560px",
-                                objectFit: "contain",
-                                display: "block"
+                                minHeight: "260px",
+                                background: "#000",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "zoom-in",
+                                overflow: "hidden"
                               }}
-                            />
+                            >
+                              <img
+                                src={img.url}
+                                alt={`${cat.name} ${cto.num}`}
+                                loading="lazy"
+                                style={{
+                                  width: "100%",
+                                  maxHeight: "560px",
+                                  objectFit: "contain",
+                                  display: "block"
+                                }}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
+                  )}
 
                     {/* Barra Inferior de Acciones Rápidas de la CTO (Tipo Post) */}
                     <div style={{
@@ -977,10 +1295,8 @@ export default function PhotoAuditPage() {
                     </div>
 
                   </div>
-
-                </div>
-              );
-            })}
+                );
+              })}
 
             {loading && (
               <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--primary-color)", fontWeight: 800 }}>
@@ -1277,6 +1593,57 @@ export default function PhotoAuditPage() {
               draggable={false}
             />
           </div>
+        </div>
+      )}
+
+      {/* Indicador Flotante de Auto-Auditoría al Scrollear */}
+      {autoAuditOnScroll && (
+        <div style={{
+          position: "fixed",
+          bottom: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 9000,
+          background: "rgba(15, 23, 42, 0.95)",
+          border: "1.5px solid #10b981",
+          borderRadius: "30px",
+          padding: "8px 18px",
+          color: "#f8fafc",
+          fontSize: "0.82rem",
+          fontWeight: 800,
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          boxShadow: "0 8px 30px rgba(0,0,0,0.6)",
+          backdropFilter: "blur(8px)"
+        }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#10b981" }}>
+            <span>⚡</span> Auto-auditoría activa
+          </span>
+          <span style={{
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "#10b981",
+            padding: "2px 10px",
+            borderRadius: "12px",
+            fontSize: "0.76rem"
+          }}>
+            {autoAuditedCount} validadas al dejarlas arriba
+          </span>
+          <button
+            type="button"
+            onClick={() => setAutoAuditOnScroll(false)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#94a3b8",
+              cursor: "pointer",
+              fontSize: "0.75rem",
+              textDecoration: "underline",
+              padding: 0
+            }}
+          >
+            Pausar
+          </button>
         </div>
       )}
 
