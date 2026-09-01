@@ -71,6 +71,142 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const [repairInboxSearch, setRepairInboxSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("AUDITORIA");
 
+  // Estados para el botón Casa (Vista inicial: toque = ir a inicio / mantener 5s = guardar vista y zoom actual)
+  const [homeProgress, setHomeProgress] = useState(0);
+  const [isHoldingHome, setIsHoldingHome] = useState(false);
+  const [homeToast, setHomeToast] = useState<{ message: string; type: "success" | "info" | "warning" } | null>(null);
+  const [homeViewTarget, setHomeViewTarget] = useState<{ lat: number; lng: number; zoom: number; ts: number } | null>(null);
+
+  const homeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const homeIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const homeStartTsRef = useRef<number>(0);
+  const homeSuccessRef = useRef<boolean>(false);
+
+  const triggerHomeToast = useCallback((message: string, type: "success" | "info" | "warning" = "info") => {
+    setHomeToast({ message, type });
+    setTimeout(() => {
+      setHomeToast(prev => prev?.message === message ? null : prev);
+    }, 3200);
+  }, []);
+
+  const handleHomePressStart = () => {
+    homeStartTsRef.current = Date.now();
+    homeSuccessRef.current = false;
+    setIsHoldingHome(true);
+    setHomeProgress(0);
+
+    const HOLD_DURATION = 5000;
+
+    homeIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - homeStartTsRef.current;
+      const pct = Math.min(100, (elapsed / HOLD_DURATION) * 100);
+      setHomeProgress(pct);
+    }, 50);
+
+    homeTimerRef.current = setTimeout(async () => {
+      homeSuccessRef.current = true;
+      if (homeIntervalRef.current) clearInterval(homeIntervalRef.current);
+      setIsHoldingHome(false);
+      setHomeProgress(100);
+
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try { navigator.vibrate([70, 40, 70]); } catch (err) {}
+      }
+
+      let curLat = initialMapState?.lat || 36.425;
+      let curLng = initialMapState?.lng || -5.144;
+      let curZoom = initialMapState?.zoom || 14;
+
+      try {
+        const leafMap = (window as any).__leafletMap;
+        if (leafMap && typeof leafMap.getCenter === "function") {
+          const c = leafMap.getCenter();
+          curLat = c.lat;
+          curLng = c.lng;
+          curZoom = leafMap.getZoom();
+        } else {
+          const sLat = localStorage.getItem("saved_map_lat");
+          const sLng = localStorage.getItem("saved_map_lng");
+          const sZoom = localStorage.getItem("saved_map_zoom");
+          if (sLat && sLng) {
+            curLat = parseFloat(sLat);
+            curLng = parseFloat(sLng);
+            curZoom = sZoom ? parseInt(sZoom) : curZoom;
+          }
+        }
+      } catch (err) {}
+
+      try {
+        localStorage.setItem("home_map_lat", curLat.toString());
+        localStorage.setItem("home_map_lng", curLng.toString());
+        localStorage.setItem("home_map_zoom", curZoom.toString());
+      } catch (err) {}
+
+      try {
+        await fetch("/api/users/map-state", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lat: curLat, lng: curLng, zoom: curZoom })
+        });
+      } catch (err) {}
+
+      triggerHomeToast(`Vista inicial guardada correctamente (Zoom ${curZoom})`, "success");
+      setTimeout(() => setHomeProgress(0), 400);
+    }, HOLD_DURATION);
+  };
+
+  const handleHomePressEnd = () => {
+    const elapsed = Date.now() - homeStartTsRef.current;
+
+    if (homeTimerRef.current) {
+      clearTimeout(homeTimerRef.current);
+      homeTimerRef.current = null;
+    }
+    if (homeIntervalRef.current) {
+      clearInterval(homeIntervalRef.current);
+      homeIntervalRef.current = null;
+    }
+
+    setIsHoldingHome(false);
+    setHomeProgress(0);
+
+    if (homeSuccessRef.current) {
+      return;
+    }
+
+    if (elapsed < 600) {
+      let hLat = initialMapState?.lat || 36.425;
+      let hLng = initialMapState?.lng || -5.144;
+      let hZoom = initialMapState?.zoom || 14;
+
+      try {
+        const sLat = localStorage.getItem("home_map_lat") || localStorage.getItem("saved_map_lat");
+        const sLng = localStorage.getItem("home_map_lng") || localStorage.getItem("saved_map_lng");
+        const sZoom = localStorage.getItem("home_map_zoom") || localStorage.getItem("saved_map_zoom");
+        if (sLat && sLng) {
+          hLat = parseFloat(sLat);
+          hLng = parseFloat(sLng);
+          hZoom = sZoom ? parseInt(sZoom) : hZoom;
+        }
+      } catch (err) {}
+
+      if (activeView !== "map") {
+        setActiveView("map");
+      }
+
+      const leafMap = (window as any).__leafletMap;
+      if (leafMap && typeof leafMap.flyTo === "function") {
+        leafMap.flyTo([hLat, hLng], hZoom, { animate: true, duration: 1.2 });
+      } else {
+        setHomeViewTarget({ lat: hLat, lng: hLng, zoom: hZoom, ts: Date.now() });
+      }
+
+      triggerHomeToast("Volviendo a vista inicial", "info");
+    } else {
+      triggerHomeToast("Cancelado: mantén presionado 5 segundos completos para guardar la vista", "warning");
+    }
+  };
+
   const currentUserId = (session?.user as any)?.id;
   const repairCtos = useMemo(() => {
     if (!currentUserId) return [];
@@ -583,6 +719,46 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   return (
     <div style={{ position: "fixed", inset: 0, width: "100%", height: "100%", height: "100dvh", maxHeight: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--bg-color)", overscrollBehavior: "none" }}>
       
+      {/* Notificación Flotante de Vista Casa (Sin emojis, solo SVG) */}
+      {homeToast && (
+        <div style={{
+          position: "fixed",
+          top: "65px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 9999,
+          background: homeToast.type === "success" 
+            ? "rgba(16, 185, 129, 0.95)" 
+            : homeToast.type === "warning" 
+            ? "rgba(245, 158, 11, 0.95)" 
+            : "rgba(15, 23, 42, 0.95)",
+          color: "white",
+          padding: "8px 18px",
+          borderRadius: "24px",
+          fontSize: "0.82rem",
+          fontWeight: 800,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+          backdropFilter: "blur(8px)",
+          border: "1px solid rgba(255,255,255,0.2)",
+          pointerEvents: "none"
+        }}>
+          {homeToast.type === "success" ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+          )}
+          <span>{homeToast.message}</span>
+        </div>
+      )}
+
       {/* Cabecera Principal y Barra de Búsqueda (Fija arriba) */}
       <div style={{ background: "var(--card-bg)", borderBottom: "1px solid var(--border-color)", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", zIndex: 10, padding: "12px 16px" }}>
         
@@ -611,6 +787,86 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.73-.72" />
               </svg>
             </button>
+
+            {/* Botón Casa / Vista de Inicio (Tocar: Volver a inicio / Mantener 5s: Guardar pantalla y zoom actual) */}
+            <div style={{ position: "relative", display: "inline-flex" }}>
+              <button 
+                type="button"
+                onMouseDown={handleHomePressStart}
+                onMouseUp={handleHomePressEnd}
+                onMouseLeave={handleHomePressEnd}
+                onTouchStart={handleHomePressStart}
+                onTouchEnd={handleHomePressEnd}
+                onTouchCancel={handleHomePressEnd}
+                onContextMenu={(e) => e.preventDefault()}
+                className="btn" 
+                title="Toque: Ir a vista inicial | Mantén 5 segundos: Guardar pantalla y zoom actual"
+                style={{ 
+                  position: "relative",
+                  padding: "6px 8px", 
+                  background: isHoldingHome ? "rgba(255, 121, 0, 0.2)" : "var(--bg-color)", 
+                  color: isHoldingHome ? "var(--primary-color)" : "var(--text-color)", 
+                  minHeight: "34px", display: "flex", alignItems: "center", justifyContent: "center", 
+                  border: isHoldingHome ? "1.5px solid var(--primary-color)" : "1px solid var(--border-color)", 
+                  borderRadius: "6px", cursor: "pointer",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                  overflow: "hidden"
+                }}
+              >
+                {/* SVG Icono Casa (Sin emojis) */}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" style={{ zIndex: 2 }}>
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+
+                {/* Barra de progreso de los 5 segundos */}
+                {homeProgress > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      left: 0,
+                      height: "3px",
+                      width: `${homeProgress}%`,
+                      background: "var(--primary-color, #FF7900)",
+                      transition: "width 0.05s linear",
+                      zIndex: 3
+                    }}
+                  />
+                )}
+              </button>
+
+              {/* Tooltip flotante en vivo mientras se mantiene presionado */}
+              {isHoldingHome && (
+                <div style={{
+                  position: "absolute",
+                  top: "42px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  background: "rgba(15, 23, 42, 0.95)",
+                  color: "white",
+                  padding: "6px 12px",
+                  borderRadius: "8px",
+                  fontSize: "0.72rem",
+                  fontWeight: 800,
+                  whiteSpace: "nowrap",
+                  zIndex: 2000,
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+                  border: "1px solid var(--primary-color, #FF7900)",
+                  pointerEvents: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px"
+                }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  <span>Guardando vista... {Math.max(1, Math.ceil((5000 - (homeProgress / 100) * 5000) / 1000))}s</span>
+                </div>
+              )}
+            </div>
 
             {/* Botón Mi Perfil (👤 Iconoir Outline) - Toggles assigned pending orders */}
             <button 
@@ -1038,6 +1294,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
             patternCorrecto={patternCorrecto}
             patternFallo={patternFallo}
             centerCoords={centerCoords}
+            homeViewTarget={homeViewTarget}
           />
         </div>
 

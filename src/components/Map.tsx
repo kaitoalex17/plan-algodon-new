@@ -210,7 +210,12 @@ function MapStateAndTracking({
 }) {
   const map = useMap();
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const firstLocationRef = useRef<boolean>(true);
+  // Exponer instancia global de Leaflet para acceso rápido desde controles externos
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as any).__leafletMap = map;
+    }
+  }, [map]);
 
   // Cargar posición inicial guardada (Prioridad: localStorage inmediato -> initialMapState de la BD)
   useEffect(() => {
@@ -472,6 +477,16 @@ function ChangeMapView({ centerCoords }: { centerCoords: [number, number] | null
   return null;
 }
 
+function HomeViewFlyController({ target }: { target?: { lat: number; lng: number; zoom: number; ts: number } | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (target && typeof target.lat === "number" && typeof target.lng === "number") {
+      map.flyTo([target.lat, target.lng], target.zoom, { animate: true, duration: 1.2 });
+    }
+  }, [target, map]);
+  return null;
+}
+
 export default function Map({ 
   ctos, 
   onCtoClick,
@@ -482,7 +497,8 @@ export default function Map({
   markerSize = 6,
   patternCorrecto = "diagonal-stripes",
   patternFallo = "cross-pattern",
-  centerCoords = null
+  centerCoords = null,
+  homeViewTarget = null
 }: { 
   ctos: any[], 
   onCtoClick: (cto: any) => void,
@@ -493,11 +509,116 @@ export default function Map({
   markerSize?: number,
   patternCorrecto?: string,
   patternFallo?: string,
-  centerCoords?: [number, number] | null
+  centerCoords?: [number, number] | null,
+  homeViewTarget?: { lat: number; lng: number; zoom: number; ts: number } | null
 }) {
   const [tileUrl, setTileUrl] = useState("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}");
   const [showMapTypes, setShowMapTypes] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
+
+  // Estados para el botón Casa en el mapa (toque = ir a inicio / mantener 5s = guardar zoom y centro)
+  const [mapHomeProgress, setMapHomeProgress] = useState(0);
+  const [isHoldingMapHome, setIsHoldingMapHome] = useState(false);
+  const [mapHomeToast, setMapHomeToast] = useState<{ message: string; success: boolean } | null>(null);
+
+  const mapHomeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const mapHomeIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const mapHomeStartTsRef = useRef<number>(0);
+  const mapHomeSuccessRef = useRef<boolean>(false);
+
+  const triggerMapHomeToast = (message: string, success: boolean = true) => {
+    setMapHomeToast({ message, success });
+    setTimeout(() => setMapHomeToast(null), 3000);
+  };
+
+  const handleMapHomePressStart = () => {
+    mapHomeStartTsRef.current = Date.now();
+    mapHomeSuccessRef.current = false;
+    setIsHoldingMapHome(true);
+    setMapHomeProgress(0);
+
+    const HOLD_DURATION = 5000;
+
+    mapHomeIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - mapHomeStartTsRef.current;
+      setMapHomeProgress(Math.min(100, (elapsed / HOLD_DURATION) * 100));
+    }, 50);
+
+    mapHomeTimerRef.current = setTimeout(async () => {
+      mapHomeSuccessRef.current = true;
+      if (mapHomeIntervalRef.current) clearInterval(mapHomeIntervalRef.current);
+      setIsHoldingMapHome(false);
+      setMapHomeProgress(100);
+
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try { navigator.vibrate([70, 40, 70]); } catch (e) {}
+      }
+
+      let curLat = initialMapState?.lat || 36.425;
+      let curLng = initialMapState?.lng || -5.144;
+      let curZoom = initialMapState?.zoom || 14;
+
+      if (mapRef.current) {
+        const c = mapRef.current.getCenter();
+        curLat = c.lat;
+        curLng = c.lng;
+        curZoom = mapRef.current.getZoom();
+      }
+
+      try {
+        localStorage.setItem("home_map_lat", curLat.toString());
+        localStorage.setItem("home_map_lng", curLng.toString());
+        localStorage.setItem("home_map_zoom", curZoom.toString());
+      } catch (e) {}
+
+      try {
+        await fetch("/api/users/map-state", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lat: curLat, lng: curLng, zoom: curZoom })
+        });
+      } catch (e) {}
+
+      triggerMapHomeToast(`Vista inicial guardada (Zoom ${curZoom})`, true);
+      setTimeout(() => setMapHomeProgress(0), 400);
+    }, HOLD_DURATION);
+  };
+
+  const handleMapHomePressEnd = () => {
+    const elapsed = Date.now() - mapHomeStartTsRef.current;
+
+    if (mapHomeTimerRef.current) clearTimeout(mapHomeTimerRef.current);
+    if (mapHomeIntervalRef.current) clearInterval(mapHomeIntervalRef.current);
+
+    setIsHoldingMapHome(false);
+    setMapHomeProgress(0);
+
+    if (mapHomeSuccessRef.current) return;
+
+    if (elapsed < 600) {
+      let hLat = initialMapState?.lat || 36.425;
+      let hLng = initialMapState?.lng || -5.144;
+      let hZoom = initialMapState?.zoom || 14;
+
+      try {
+        const sLat = localStorage.getItem("home_map_lat") || localStorage.getItem("saved_map_lat");
+        const sLng = localStorage.getItem("home_map_lng") || localStorage.getItem("saved_map_lng");
+        const sZoom = localStorage.getItem("home_map_zoom") || localStorage.getItem("saved_map_zoom");
+        if (sLat && sLng) {
+          hLat = parseFloat(sLat);
+          hLng = parseFloat(sLng);
+          hZoom = sZoom ? parseInt(sZoom) : hZoom;
+        }
+      } catch (e) {}
+
+      if (mapRef.current) {
+        mapRef.current.flyTo([hLat, hLng], hZoom, { animate: true, duration: 1.2 });
+      }
+      triggerMapHomeToast("Volviendo a vista inicial", false);
+    } else {
+      triggerMapHomeToast("Cancelado: mantén 5 segundos para guardar", false);
+    }
+  };
 
   // Cargar capa guardada
   useEffect(() => {
@@ -646,12 +767,116 @@ export default function Map({
         
         {/* Cambiar vista del mapa al buscar */}
         <ChangeMapView centerCoords={centerCoords} />
+
+        {/* Volver a vista inicial Casa */}
+        <HomeViewFlyController target={homeViewTarget} />
       </MapContainer>
+
+      {/* Notificación Toast en mapa para Vista Casa (Sin emojis) */}
+      {mapHomeToast && (
+        <div style={{
+          position: "absolute",
+          top: "16px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 2000,
+          background: mapHomeToast.success ? "rgba(16, 185, 129, 0.95)" : "rgba(15, 23, 42, 0.95)",
+          color: "white",
+          padding: "8px 18px",
+          borderRadius: "20px",
+          fontSize: "0.8rem",
+          fontWeight: 800,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          boxShadow: "0 6px 20px rgba(0,0,0,0.35)",
+          backdropFilter: "blur(6px)",
+          border: "1px solid rgba(255,255,255,0.2)",
+          pointerEvents: "none"
+        }}>
+          {mapHomeToast.success ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+          )}
+          <span>{mapHomeToast.message}</span>
+        </div>
+      )}
 
       {/* Controles del Mapa Agrupados a la Izquierda en Pila Vertical */}
       <div style={{ position: "absolute", top: "16px", left: "16px", zIndex: 1000, display: "flex", flexDirection: "column", gap: "10px" }}>
         
-        {/* Botón Geolocalización Directa / Ubicarme (📍) */}
+        {/* Botón Casa / Vista Inicial en Mapa (Tocar: Ir a inicio / Mantener 5s: Guardar vista actual) */}
+        <div style={{ position: "relative" }}>
+          <button 
+            type="button"
+            onMouseDown={handleMapHomePressStart}
+            onMouseUp={handleMapHomePressEnd}
+            onMouseLeave={handleMapHomePressEnd}
+            onTouchStart={handleMapHomePressStart}
+            onTouchEnd={handleMapHomePressEnd}
+            onTouchCancel={handleMapHomePressEnd}
+            onContextMenu={(e) => e.preventDefault()}
+            title="Toque: Ir a vista inicial | Mantén 5 segundos: Guardar pantalla y zoom actual"
+            style={{
+              width: "44px", height: "44px", borderRadius: "50%",
+              background: isHoldingMapHome ? "rgba(255, 121, 0, 0.15)" : "white",
+              border: isHoldingMapHome ? "2px solid var(--primary-color, #FF7900)" : "1.5px solid #cbd5e1",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+              color: isHoldingMapHome ? "var(--primary-color, #FF7900)" : "#475569",
+              transition: "all 0.2s", position: "relative", overflow: "hidden",
+              userSelect: "none", WebkitUserSelect: "none"
+            }}
+          >
+            {/* Icono Casa SVG */}
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" style={{ zIndex: 2 }}>
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+
+            {/* Barra de progreso de los 5 segundos */}
+            {mapHomeProgress > 0 && (
+              <div style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                height: "3px",
+                width: `${mapHomeProgress}%`,
+                background: "var(--primary-color, #FF7900)",
+                transition: "width 0.05s linear",
+                zIndex: 3
+              }} />
+            )}
+          </button>
+
+          {/* Tooltip de cuenta regresiva al mantener presionado */}
+          {isHoldingMapHome && (
+            <div style={{
+              position: "absolute", left: "52px", top: "6px",
+              background: "rgba(15, 23, 42, 0.95)", color: "white",
+              padding: "6px 12px", borderRadius: "8px", fontSize: "0.72rem",
+              fontWeight: 800, whiteSpace: "nowrap", zIndex: 2000,
+              boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+              border: "1px solid var(--primary-color, #FF7900)",
+              display: "flex", alignItems: "center", gap: "6px",
+              pointerEvents: "none"
+            }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color, #FF7900)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span>Guardando vista... {Math.max(1, Math.ceil((5000 - (mapHomeProgress / 100) * 5000) / 1000))}s</span>
+            </div>
+          )}
+        </div>
+
+        {/* Botón Geolocalización Directa / Ubicarme */}
         <button 
           onClick={() => {
             if (navigator.geolocation) {
