@@ -67,7 +67,18 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showMyProgramadasModal, setShowMyProgramadasModal] = useState(false);
   const [showImpactModal, setShowImpactModal] = useState(false);
+  const [showRepairInboxModal, setShowRepairInboxModal] = useState(false);
+  const [repairInboxSearch, setRepairInboxSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("AUDITORIA");
+
+  const currentUserId = (session?.user as any)?.id;
+  const repairCtos = useMemo(() => {
+    return ctos.filter((c: any) => {
+      if (c.status !== "REPARAR") return false;
+      if (isAdmin) return true;
+      return c.assignedToId === currentUserId;
+    });
+  }, [ctos, isAdmin, currentUserId]);
 
   useEffect(() => {
     // Sincronizar tema con localStorage y clases globales de body y html
@@ -633,6 +644,56 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 <circle cx="12" cy="7" r="4" />
               </svg>
             </button>
+
+            {/* Botón Buzón de Notificaciones y CTOs a Reparar (📬 / 💬) */}
+            <button 
+              onClick={() => setShowRepairInboxModal(true)} 
+              className="btn" 
+              title={`Buzón de Reparaciones e Incidencias (${repairCtos.length} pendientes)`}
+              style={{ 
+                position: "relative",
+                padding: "6px 8px", 
+                background: repairCtos.length > 0 ? "rgba(139, 92, 246, 0.15)" : "var(--bg-color)", 
+                color: repairCtos.length > 0 ? "#8b5cf6" : "var(--text-color)", 
+                minHeight: "34px", display: "flex", alignItems: "center", justifyContent: "center", 
+                border: repairCtos.length > 0 ? "1.5px solid #8b5cf6" : "1px solid var(--border-color)", 
+                borderRadius: "6px", cursor: "pointer",
+                transition: "all 0.2s ease"
+              }}
+            >
+              <svg 
+                width="18" 
+                height="18" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2.3" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <path d="M8 9h8" />
+                <path d="M8 13h5" />
+              </svg>
+
+              {repairCtos.length > 0 && (
+                <span style={{
+                  position: "absolute",
+                  top: "-5px",
+                  right: "-5px",
+                  background: "#8b5cf6",
+                  color: "white",
+                  borderRadius: "10px",
+                  padding: "1px 5px",
+                  fontSize: "0.64rem",
+                  fontWeight: 900,
+                  boxShadow: "0 2px 6px rgba(139, 92, 246, 0.5)",
+                  lineHeight: "1.2"
+                }}>
+                  {repairCtos.length}
+                </span>
+              )}
+            </button>
             {isAdmin && (
               <button 
                 onClick={() => window.location.href = "/admin"} 
@@ -797,6 +858,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                   <option value="">Todos</option>
                   <option value="PENDIENTE">PENDIENTE</option>
                   <option value="CORRECTO">CORRECTO</option>
+                  <option value="REPARAR">🛠️ REPARAR</option>
                   <option value="FALLO">FALLO</option>
                 </select>
               </div>
@@ -1030,10 +1092,10 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                           
                           <span style={{ 
                             padding: "4px 10px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 700,
-                            background: cto.status === "CORRECTO" || cto.status === "REVISADO" ? "#d1fae5" : cto.status === "FALLO" ? "#fee2e2" : "#f3f4f6",
-                            color: cto.status === "CORRECTO" || cto.status === "REVISADO" ? "#065f46" : cto.status === "FALLO" ? "#991b1b" : "#374151"
+                            background: cto.status === "CORRECTO" || cto.status === "REVISADO" ? "#d1fae5" : cto.status === "REPARAR" ? "#ede9fe" : cto.status === "FALLO" ? "#fee2e2" : "#f3f4f6",
+                            color: cto.status === "CORRECTO" || cto.status === "REVISADO" ? "#065f46" : cto.status === "REPARAR" ? "#6d28d9" : cto.status === "FALLO" ? "#991b1b" : "#374151"
                           }}>
-                            {cto.status}
+                            {cto.status === "REPARAR" ? "🛠️ REPARAR" : cto.status}
                           </span>
                         </div>
 
@@ -1818,6 +1880,248 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
         </div>
       )}
       
+      {/* Modal Buzón de Notificaciones y CTOs a Reparar */}
+      {showRepairInboxModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", padding: "12px", backdropFilter: "blur(4px)" }}>
+          <div style={{
+            background: "var(--card-bg, #0f172a)",
+            border: "1.5px solid #8b5cf6",
+            borderRadius: "16px",
+            width: "95%",
+            maxWidth: "600px",
+            maxHeight: "85vh",
+            display: "flex",
+            flexDirection: "column",
+            boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
+            overflow: "hidden"
+          }}>
+            {/* Cabecera del Buzón */}
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-color)", background: "var(--bg-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem" }}>
+                  📬
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "var(--text-color)" }}>
+                    Buzón de Reparaciones e Incidencias
+                  </h3>
+                  <span style={{ fontSize: "0.75rem", opacity: 0.75 }}>
+                    {repairCtos.length === 1 ? "1 caja asignada para reparar" : `${repairCtos.length} cajas asignadas para reparar`}
+                  </span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowRepairInboxModal(false)}
+                style={{ background: "none", border: "none", fontSize: "1.2rem", color: "#94a3b8", cursor: "pointer", padding: "4px" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Buscador interno si hay más de 3 cajas */}
+            {repairCtos.length > 3 && (
+              <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border-color)", background: "var(--card-bg)" }}>
+                <input
+                  type="text"
+                  placeholder="Buscar en el buzón por número, cluster o zona..."
+                  value={repairInboxSearch}
+                  onChange={(e) => setRepairInboxSearch(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border-color)",
+                    background: "var(--bg-color)",
+                    color: "var(--text-color)",
+                    fontSize: "0.82rem"
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Lista de CTOs a reparar */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              {repairCtos.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                  <div style={{ fontSize: "2.5rem", marginBottom: "8px" }}>🎉</div>
+                  <h4 style={{ fontSize: "1rem", fontWeight: 800, margin: "0 0 4px 0", color: "var(--text-color)" }}>¡Buzón Limpio!</h4>
+                  <p style={{ fontSize: "0.82rem", opacity: 0.7, margin: 0 }}>
+                    No tienes ninguna caja pendiente de reparación en este momento.
+                  </p>
+                </div>
+              ) : (
+                (() => {
+                  const filteredList = repairInboxSearch.trim()
+                    ? repairCtos.filter((c: any) =>
+                        c.num.toLowerCase().includes(repairInboxSearch.toLowerCase()) ||
+                        (c.cluster && c.cluster.toLowerCase().includes(repairInboxSearch.toLowerCase())) ||
+                        (c.zona && c.zona.toLowerCase().includes(repairInboxSearch.toLowerCase())) ||
+                        (c.municipio && c.municipio.toLowerCase().includes(repairInboxSearch.toLowerCase()))
+                      )
+                    : repairCtos;
+
+                  if (filteredList.length === 0) {
+                    return (
+                      <p style={{ textAlign: "center", fontSize: "0.85rem", opacity: 0.7, padding: "20px" }}>
+                        No hay resultados para &quot;{repairInboxSearch}&quot;
+                      </p>
+                    );
+                  }
+
+                  return filteredList.map((c: any) => {
+                    // Obtener la última nota o comentario de incidencia
+                    const lastComment = c.comments && c.comments.length > 0
+                      ? c.comments[c.comments.length - 1].text
+                      : c.notas || "Se requiere revisión de evidencias fotográficas o instalación.";
+
+                    return (
+                      <div 
+                        key={c.id}
+                        style={{
+                          background: "var(--bg-color)",
+                          border: "1.5px solid rgba(139, 92, 246, 0.4)",
+                          borderRadius: "12px",
+                          padding: "12px",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "8px"
+                        }}
+                      >
+                        {/* Cabecera de la tarjeta */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "0.95rem", fontWeight: 900, color: "#8b5cf6" }}>
+                              CTO {c.num}
+                            </span>
+                            {c.numeroNuevo && (
+                              <span style={{ fontSize: "0.72rem", background: "var(--card-bg)", color: "var(--text-color)", opacity: 0.8, padding: "1px 6px", borderRadius: "4px" }}>
+                                {c.numeroNuevo}
+                              </span>
+                            )}
+                            <span style={{ fontSize: "0.68rem", fontWeight: 800, padding: "2px 6px", borderRadius: "8px", background: "rgba(139, 92, 246, 0.2)", color: "#8b5cf6" }}>
+                              🛠️ REPARAR
+                            </span>
+                          </div>
+
+                          {c.assignedTo && (
+                            <span style={{ fontSize: "0.74rem", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                              <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: c.assignedTo.color || "#FF7900" }} />
+                              {c.assignedTo.name}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Localización y datos */}
+                        <div style={{ fontSize: "0.78rem", opacity: 0.75, display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                          {c.municipio && <span>📍 {c.municipio}</span>}
+                          {c.cluster && <span>📁 {c.cluster}</span>}
+                          {c.zona && <span>🏷️ Zona: {c.zona}</span>}
+                        </div>
+
+                        {/* Motivo de la Incidencia / Mensaje */}
+                        <div style={{
+                          background: "rgba(139, 92, 246, 0.08)",
+                          borderLeft: "3px solid #8b5cf6",
+                          padding: "6px 10px",
+                          borderRadius: "4px",
+                          fontSize: "0.78rem",
+                          color: "var(--text-color)"
+                        }}>
+                          <strong style={{ color: "#8b5cf6", display: "block", marginBottom: "2px" }}>
+                            💬 Motivo de Reparación:
+                          </strong>
+                          <span>{lastComment}</span>
+                        </div>
+
+                        {/* Botones de acción directa */}
+                        <div style={{ display: "flex", gap: "8px", marginTop: "2px", flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowRepairInboxModal(false);
+                              setSelectedCto(c);
+                              setCenterCoords([c.lat, c.lng]);
+                            }}
+                            style={{
+                              flex: 1,
+                              minHeight: "34px",
+                              background: "var(--primary-color, #FF7900)",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "8px",
+                              padding: "6px 12px",
+                              fontSize: "0.78rem",
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: "6px"
+                            }}
+                          >
+                            <span>🗺️ Ver en Mapa</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowRepairInboxModal(false);
+                              try {
+                                localStorage.setItem(`cto_cache_${c.id}`, JSON.stringify(c));
+                              } catch (e) {}
+                              router.push(`/photo-guide?ctoId=${c.id}&num=${encodeURIComponent(c.num || "")}`);
+                            }}
+                            style={{
+                              flex: 1,
+                              minHeight: "34px",
+                              background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "8px",
+                              padding: "6px 12px",
+                              fontSize: "0.78rem",
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: "6px"
+                            }}
+                          >
+                            <span>📸 Guía Fotográfica</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()
+              )}
+            </div>
+
+            {/* Pie del modal */}
+            <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border-color)", background: "var(--bg-color)", display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setShowRepairInboxModal(false)}
+                style={{
+                  padding: "8px 18px",
+                  borderRadius: "8px",
+                  background: "var(--card-bg)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                  fontWeight: 700,
+                  fontSize: "0.82rem",
+                  cursor: "pointer"
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Drawer inferior para detalles de CTO */}
       <CtoDrawer 
         cto={selectedCto} 

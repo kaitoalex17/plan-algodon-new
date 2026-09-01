@@ -14,9 +14,10 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
-    const statusFilter = searchParams.get("status") || "ALL"; // ALL, CORRECTO, FALLO, PENDIENTE
+    const statusFilter = searchParams.get("status") || "ALL"; // ALL, CORRECTO, FALLO, PENDIENTE, REPARAR
     const cluster = searchParams.get("cluster") || "";
     const search = searchParams.get("search") || "";
+    const technicianId = searchParams.get("technicianId") || "";
     const onlyWithImages = searchParams.get("onlyWithImages") !== "false"; // Por defecto true
 
     const skip = (page - 1) * limit;
@@ -35,6 +36,10 @@ export async function GET(req: NextRequest) {
       whereClause.cluster = cluster;
     }
 
+    if (technicianId) {
+      whereClause.assignedToId = technicianId;
+    }
+
     if (search) {
       whereClause.OR = [
         { num: { contains: search, mode: "insensitive" } },
@@ -44,7 +49,7 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    const [totalCount, ctos] = await Promise.all([
+    const [totalCount, ctos, pendingCount, repairCount, correctCount, falloCount] = await Promise.all([
       prisma.cTO.count({ where: whereClause }),
       prisma.cTO.findMany({
         where: whereClause,
@@ -57,7 +62,11 @@ export async function GET(req: NextRequest) {
           assignedTo: { select: { id: true, name: true, email: true, color: true } },
           auditedBy: { select: { id: true, name: true, email: true, color: true } },
         }
-      })
+      }),
+      prisma.cTO.count({ where: { images: { some: {} }, status: "PENDIENTE" } }),
+      prisma.cTO.count({ where: { images: { some: {} }, status: "REPARAR" } }),
+      prisma.cTO.count({ where: { images: { some: {} }, status: "CORRECTO" } }),
+      prisma.cTO.count({ where: { images: { some: {} }, status: "FALLO" } }),
     ]);
 
     // Obtener lista de clústeres disponibles para filtros
@@ -68,6 +77,13 @@ export async function GET(req: NextRequest) {
     });
     const clusters = clustersRaw.map(c => c.cluster).filter(Boolean) as string[];
 
+    // Obtener técnicos disponibles para el selector
+    const technicians = await prisma.user.findMany({
+      where: { role: { in: ["USER", "AUDITOR", "GESTOR"] } },
+      select: { id: true, name: true, email: true, color: true },
+      orderBy: { name: "asc" }
+    });
+
     return NextResponse.json({
       ctos,
       totalCount,
@@ -75,7 +91,14 @@ export async function GET(req: NextRequest) {
       limit,
       totalPages: Math.ceil(totalCount / limit),
       hasMore: skip + ctos.length < totalCount,
-      clusters
+      clusters,
+      technicians,
+      stats: {
+        pendingCount,
+        repairCount,
+        correctCount,
+        falloCount
+      }
     });
   } catch (error: any) {
     console.error("Error en photo-audit GET:", error);
@@ -93,7 +116,7 @@ export async function PATCH(req: NextRequest) {
 
     const { ctoId, newStatus, reason } = await req.json();
 
-    if (!ctoId || !["CORRECTO", "FALLO", "PENDIENTE"].includes(newStatus)) {
+    if (!ctoId || !["CORRECTO", "FALLO", "PENDIENTE", "REPARAR"].includes(newStatus)) {
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
     }
 
@@ -115,9 +138,28 @@ export async function PATCH(req: NextRequest) {
       }
     });
 
+    // Si se manda a REPARAR o a FALLO con motivo, guardar comentario para el buzón de la CTO
+    if (reason && (newStatus === "REPARAR" || newStatus === "FALLO")) {
+      try {
+        await prisma.comment.create({
+          data: {
+            ctoId,
+            userId: currentUserId,
+            text: newStatus === "REPARAR"
+              ? `🛠️ [REPARACIÓN SOLICITADA]: ${reason}`
+              : `✕ [INCIDENCIA DETECTADA]: ${reason}`
+          }
+        });
+      } catch (comErr) {
+        console.error("Error al crear comentario de reparación:", comErr);
+      }
+    }
+
     // Registrar en Historial
     const actionText = newStatus === "CORRECTO"
       ? `Evidencias Validadas Bien (CORRECTO) por ${adminName}`
+      : newStatus === "REPARAR"
+      ? `Evidencias Rechazadas - Enviada a REPARAR por ${adminName}${reason ? `: ${reason}` : ''}`
       : newStatus === "FALLO"
       ? `Evidencias Marcadas con Fallo (FALLO) por ${adminName}${reason ? `: ${reason}` : ''}`
       : `Estado cambiado a PENDIENTE por ${adminName}`;

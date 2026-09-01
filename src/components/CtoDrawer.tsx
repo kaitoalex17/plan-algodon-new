@@ -1235,9 +1235,9 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               borderRadius: "16px", 
               fontSize: "0.78rem", 
               fontWeight: 800,
-              background: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#d1fae5" : displayStatus === "FALLO" ? "#fee2e2" : "#fef3c7",
-              color: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#065f46" : displayStatus === "FALLO" ? "#991b1b" : "#92400e",
-              border: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "1px solid #10b981" : displayStatus === "FALLO" ? "1px solid #ef4444" : "1px solid #f59e0b",
+              background: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#d1fae5" : displayStatus === "REPARAR" ? "#ede9fe" : displayStatus === "FALLO" ? "#fee2e2" : "#fef3c7",
+              color: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "#065f46" : displayStatus === "REPARAR" ? "#6d28d9" : displayStatus === "FALLO" ? "#991b1b" : "#92400e",
+              border: displayStatus === "CORRECTO" || displayStatus === "REVISADO" ? "1px solid #10b981" : displayStatus === "REPARAR" ? "1px solid #8b5cf6" : displayStatus === "FALLO" ? "1px solid #ef4444" : "1px solid #f59e0b",
               whiteSpace: "nowrap"
             }}>
               {displayStatus}
@@ -1531,12 +1531,14 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       <>
                         <option value="PENDIENTE">PENDIENTE</option>
                         <option value="REVISADO">REVISADO</option>
+                        <option value="REPARAR">🛠️ REPARAR</option>
                         <option value="FALLO">FALLO</option>
                       </>
                     ) : (
                       <>
                         <option value="PENDIENTE">PENDIENTE</option>
                         <option value="CORRECTO">CORRECTO</option>
+                        <option value="REPARAR">🛠️ REPARAR</option>
                         <option value="FALLO">FALLO</option>
                       </>
                     )}

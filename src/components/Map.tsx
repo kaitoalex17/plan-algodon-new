@@ -171,6 +171,21 @@ function createCustomIcon(
         <line x1="${center - radius * 0.4}" y1="${center}" x2="${center + radius * 0.4}" y2="${center}" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round" />
       `;
     }
+  } else if (status === "REPARAR") {
+    // Símbolo distintivo para CTOs enviadas a REPARAR (color violeta #8b5cf6)
+    let innerBorder = "";
+    if (shape === "square") {
+      innerBorder = `<rect x="${center - radius + 1.5}" y="${center - radius + 1.5}" width="${(radius - 1.5) * 2}" height="${(radius - 1.5) * 2}" fill="none" stroke="#8b5cf6" stroke-width="1.8" rx="1" />`;
+    } else {
+      innerBorder = `<circle cx="${center}" cy="${center}" r="${radius - 1.5}" fill="none" stroke="#8b5cf6" stroke-width="1.8" />`;
+    }
+    svgContent += innerBorder;
+
+    // Núcleo violeta con centro blanco representando acción de taller/reparación
+    svgContent += `
+      <circle cx="${center}" cy="${center}" r="${radius * 0.42}" fill="#8b5cf6" stroke="#ffffff" stroke-width="0.8" />
+      <circle cx="${center}" cy="${center}" r="${radius * 0.18}" fill="#ffffff" />
+    `;
   }
 
   return L.divIcon({
@@ -336,10 +351,11 @@ function CtoMarkers({
   return (
     <>
       {visibleCtos.map(cto => {
-        // Asignar color de borde basado en subestado o estado (incluyendo soporte para REVISADO en verde)
+        // Asignar color de borde basado en subestado o estado (incluyendo soporte para REVISADO en verde y REPARAR en violeta)
         const borderColor = cto.subStatus?.color || (
           cto.status === "PENDIENTE" ? "#808080" : 
           (cto.status === "CORRECTO" || cto.status === "REVISADO") ? "#10b981" : 
+          cto.status === "REPARAR" ? "#8b5cf6" :
           "#ef4444"
         );
         const fillColor = cto.assignedTo?.color || "#ffffff";
@@ -411,6 +427,10 @@ function MapLegend({ users, showLegend, setShowLegend }: { users: any[], showLeg
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #10b981", background: "white" }} />
                   <span>Correcto / Revisado</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #8b5cf6", background: "white" }} />
+                  <span>A Reparar</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #ef4444", background: "white" }} />
