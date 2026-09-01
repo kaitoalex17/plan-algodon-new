@@ -1680,7 +1680,12 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <div style={{ marginBottom: "1rem" }}>
                 <button 
                   type="button"
-                  onClick={() => window.open(`/photo-guide?ctoId=${cto.id}`, "_blank")}
+                  onClick={() => {
+                    try {
+                      localStorage.setItem(`cto_cache_${cto.id}`, JSON.stringify(cto));
+                    } catch (e) {}
+                    window.open(`/photo-guide?ctoId=${cto.id}&num=${encodeURIComponent(cto.num || "")}`, "_blank");
+                  }}
                   className="btn" 
                   style={{ 
                     width: "100%", 
