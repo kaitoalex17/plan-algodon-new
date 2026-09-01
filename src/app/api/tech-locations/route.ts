@@ -33,7 +33,7 @@ async function getPersistedDbLocations(): Promise<Record<string, any>> {
   return {};
 }
 
-// GET: Devuelve la última ubicación conocida y compartida de todos los técnicos
+// GET: Devuelve la ubicación de los técnicos (últimos 30 min para mapa global, o todos con ?all=true para admin)
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -41,10 +41,32 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    // 1. Obtener todas las ubicaciones guardadas en BD (PostgreSQL permanente)
+    const now = Date.now();
+    const thirtyMinutesAgo = now - 30 * 60 * 1000;
+
+    // Limpiar entradas antiguas en memoria (desaparecen tras 30 min sin actualización)
+    for (const [id, loc] of liveTechLocations.entries()) {
+      if (loc.updatedAt < thirtyMinutesAgo) {
+        liveTechLocations.delete(id);
+      }
+    }
+
+    const { searchParams } = new URL(req.url);
+    const includeAll = searchParams.get("all") === "true";
+
+    // 1. En el mapa global: solo mostrar técnicos activos en los últimos 30 minutos
+    if (!includeAll) {
+      const activeArray = Array.from(liveTechLocations.values()).filter(
+        (loc) => loc.updatedAt >= thirtyMinutesAgo
+      );
+      return NextResponse.json(activeArray);
+    }
+
+    // 2. Para el panel de Administración (?all=true): mostrar todos los técnicos registrados con su última posición histórica
+    // Obtener todas las ubicaciones guardadas en BD (PostgreSQL permanente)
     const dbLocations = await getPersistedDbLocations();
 
-    // 2. Obtener lista de usuarios de la base de datos
+    // Obtener lista de usuarios de la base de datos
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -59,10 +81,7 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" }
     });
 
-    const now = Date.now();
-    const thirtyMinutesAgo = now - 30 * 60 * 1000;
-
-    // 3. Cruzar datos: memoria -> base de datos Setting -> tabla User
+    // Cruzar datos: memoria -> base de datos Setting -> tabla User
     const result = users
       .filter(u => u.role !== "ADMIN" || liveTechLocations.has(u.id) || dbLocations[u.id])
       .map(u => {

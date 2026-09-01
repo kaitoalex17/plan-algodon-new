@@ -44,7 +44,7 @@ export default function TechMapPage() {
 
   const loadData = async () => {
     try {
-      const res = await fetch("/api/tech-locations");
+      const res = await fetch("/api/tech-locations?all=true");
       if (res.ok) {
         const data = await res.json();
         setTechs(data);

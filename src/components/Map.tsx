@@ -576,8 +576,8 @@ export default function Map({
           </>
         )}
 
-        {/* Pines de otros técnicos en vivo en el mapa */}
-        {liveTechs.map((tech) => (
+        {/* Pines de otros técnicos en vivo en el mapa (solo activos en los últimos 30 min) */}
+        {liveTechs.filter((tech) => typeof tech.lat === "number" && typeof tech.lng === "number").map((tech) => (
           <Marker
             key={tech.userId}
             position={[tech.lat, tech.lng]}

@@ -33,7 +33,7 @@ export default function TechniciansSyncPage() {
   const loadData = async () => {
     try {
       const [resTechs, resUsers] = await Promise.all([
-        fetch("/api/tech-locations"),
+        fetch("/api/tech-locations?all=true"),
         fetch("/api/users")
       ]);
 
