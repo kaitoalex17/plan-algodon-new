@@ -53,7 +53,10 @@ export async function GET(request: NextRequest) {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { updatedAt: "desc" },
+        orderBy: [
+          { fechaAgregacion: "desc" },
+          { id: "desc" }
+        ],
         include: {
           assignedTo: {
             select: { id: true, name: true, email: true, color: true }
@@ -65,13 +68,23 @@ export async function GET(request: NextRequest) {
             select: { id: true, name: true, color: true }
           },
           images: {
-            select: { id: true, url: true, createdAt: true },
-            orderBy: { createdAt: "desc" }
+            select: { id: true, url: true }
           },
           comments: {
             select: { id: true, text: true, createdAt: true, user: { select: { name: true, email: true } } },
             orderBy: { createdAt: "desc" },
             take: 3
+          },
+          history: {
+            where: {
+              OR: [
+                { action: { contains: "REPARAR", mode: "insensitive" } },
+                { action: { contains: "reparación", mode: "insensitive" } }
+              ]
+            },
+            orderBy: { timestamp: "desc" },
+            take: 1,
+            select: { id: true, action: true, timestamp: true, user: { select: { name: true, email: true } } }
           }
         }
       }),
@@ -207,13 +220,7 @@ export async function PATCH(request: NextRequest) {
       data: {
         ctoId,
         userId: currentUserId,
-        action: historyAction,
-        changes: JSON.stringify({
-          previousStatus: existingCto.status,
-          newStatus: updateData.status || existingCto.status,
-          previousAssignedTo: existingCto.assignedTo?.name || null,
-          newAssignedTo: updatedCto.assignedTo?.name || null
-        })
+        action: historyAction
       }
     });
 

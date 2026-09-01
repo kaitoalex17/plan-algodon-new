@@ -26,6 +26,10 @@ export default async function Home() {
       include: {
         assignedTo: true,
         subStatus: true,
+        comments: {
+          orderBy: { createdAt: "desc" },
+          take: 2
+        }
       }
     });
 

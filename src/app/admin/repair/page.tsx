@@ -20,10 +20,19 @@ interface Comment {
   } | null;
 }
 
+interface HistoryRecord {
+  id: string;
+  action: string;
+  timestamp: string;
+  user?: {
+    name: string | null;
+    email: string;
+  } | null;
+}
+
 interface CTOImage {
   id: string;
   url: string;
-  createdAt: string;
 }
 
 interface CTO {
@@ -35,11 +44,12 @@ interface CTO {
   colocacion?: string | null;
   status: string;
   notas?: string | null;
-  updatedAt: string;
+  fechaAgregacion?: string | null;
   assignedTo?: User | null;
   auditedBy?: User | null;
   images: CTOImage[];
   comments: Comment[];
+  history?: HistoryRecord[];
 }
 
 interface TechnicianOption {
@@ -179,7 +189,7 @@ export default function AdminRepairPage() {
       `"${c.assignedTo?.name || c.assignedTo?.email || "Sin asignar"}"`,
       c.images.length,
       `"${(c.comments[0]?.text || "").replace(/"/g, '""')}"`,
-      `"${new Date(c.updatedAt).toLocaleString()}"`
+      `"${c.history?.[0]?.timestamp ? new Date(c.history[0].timestamp).toLocaleString() : c.comments[0]?.createdAt ? new Date(c.comments[0].createdAt).toLocaleString() : c.fechaAgregacion ? new Date(c.fechaAgregacion).toLocaleString() : "-"}"`
     ]);
 
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
@@ -404,6 +414,7 @@ export default function AdminRepairPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {ctos.map((cto) => {
               const latestComment = cto.comments[0];
+              const latestHistory = cto.history?.[0];
 
               return (
                 <div
@@ -482,14 +493,22 @@ export default function AdminRepairPage() {
                       <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#8b5cf6", textTransform: "uppercase" }}>
                         Motivo de Reparación / Último Registro
                       </span>
-                      {latestComment && (
+                      {latestComment ? (
                         <span style={{ fontSize: "0.72rem", opacity: 0.6 }}>
                           {new Date(latestComment.createdAt).toLocaleString()} por {latestComment.user?.name || latestComment.user?.email || "Auditor"}
                         </span>
-                      )}
+                      ) : latestHistory ? (
+                        <span style={{ fontSize: "0.72rem", opacity: 0.6 }}>
+                          {new Date(latestHistory.timestamp).toLocaleString()} por {latestHistory.user?.name || latestHistory.user?.email || "Auditor"}
+                        </span>
+                      ) : cto.fechaAgregacion ? (
+                        <span style={{ fontSize: "0.72rem", opacity: 0.6 }}>
+                          {new Date(cto.fechaAgregacion).toLocaleString()}
+                        </span>
+                      ) : null}
                     </div>
                     <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600 }}>
-                      {latestComment ? latestComment.text : (cto.notas || "No se ha especificado un motivo por escrito.")}
+                      {latestComment ? latestComment.text : latestHistory ? latestHistory.action : (cto.notas || "No se ha especificado un motivo por escrito.")}
                     </p>
                   </div>
 
