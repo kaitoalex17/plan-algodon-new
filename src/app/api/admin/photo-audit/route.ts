@@ -23,47 +23,57 @@ export async function GET(req: NextRequest) {
 
     const skip = (page - 1) * limit;
 
+    const conditions: any[] = [];
+
     // Soporte para filtro de fotos incompletas en cajas cerradas por técnicos
-    let incompleteIds: string[] = [];
     if (photosFilter === "INCOMPLETE" || statusFilter === "INCOMPLETE") {
       const closedForIncomplete = await prisma.cTO.findMany({
         where: { status: { in: ["CORRECTO", "FALLO"] } },
         select: { id: true, _count: { select: { images: true } } }
       });
-      incompleteIds = closedForIncomplete.filter(c => c._count.images < 6).map(c => c.id);
-      whereClause.id = { in: incompleteIds };
+      const incompleteIds = closedForIncomplete.filter(c => c._count.images < 6).map(c => c.id);
+      conditions.push({ id: { in: incompleteIds } });
     } else if (photosFilter === "WITH_PHOTOS" || onlyWithImages === "true") {
-      whereClause.images = { some: {} };
+      conditions.push({ images: { some: {} } });
     } else if (photosFilter === "WITHOUT_PHOTOS") {
-      whereClause.images = { none: {} };
+      conditions.push({ images: { none: {} } });
     }
 
     if (statusFilter === "PENDIENTE_AUDITORIA") {
-      whereClause.status = { in: ["CORRECTO", "FALLO", "PENDIENTE"] };
-      whereClause.auditedById = null;
+      conditions.push({ status: { in: ["CORRECTO", "FALLO", "PENDIENTE"] } });
+      conditions.push({
+        OR: [
+          { auditedById: null },
+          { auditedBy: { role: { not: "ADMIN" } } }
+        ]
+      });
     } else if (statusFilter === "AUDITADO_CORRECTO") {
-      whereClause.status = "CORRECTO";
-      whereClause.auditedById = { not: null };
+      conditions.push({ status: "CORRECTO" });
+      conditions.push({ auditedBy: { role: "ADMIN" } });
     } else if (statusFilter !== "ALL" && statusFilter !== "INCOMPLETE") {
-      whereClause.status = statusFilter;
+      conditions.push({ status: statusFilter });
     }
 
     if (cluster) {
-      whereClause.cluster = cluster;
+      conditions.push({ cluster });
     }
 
     if (technicianId) {
-      whereClause.assignedToId = technicianId;
+      conditions.push({ assignedToId: technicianId });
     }
 
     if (search) {
-      whereClause.OR = [
-        { num: { contains: search, mode: "insensitive" } },
-        { numeroNuevo: { contains: search, mode: "insensitive" } },
-        { municipio: { contains: search, mode: "insensitive" } },
-        { cluster: { contains: search, mode: "insensitive" } },
-      ];
+      conditions.push({
+        OR: [
+          { num: { contains: search, mode: "insensitive" } },
+          { numeroNuevo: { contains: search, mode: "insensitive" } },
+          { municipio: { contains: search, mode: "insensitive" } },
+          { cluster: { contains: search, mode: "insensitive" } },
+        ]
+      });
     }
+
+    const whereClause: any = conditions.length > 0 ? { AND: conditions } : {};
 
     const [
       totalCount,
@@ -90,7 +100,7 @@ export async function GET(req: NextRequest) {
           images: true,
           subStatus: { select: { id: true, name: true, color: true } },
           assignedTo: { select: { id: true, name: true, email: true, color: true } },
-          auditedBy: { select: { id: true, name: true, email: true, color: true } },
+          auditedBy: { select: { id: true, name: true, email: true, role: true, color: true } },
         }
       }),
       prisma.cTO.count({ where: { status: "PENDIENTE" } }),
@@ -99,14 +109,14 @@ export async function GET(req: NextRequest) {
       prisma.cTO.count({ where: { status: "FALLO" } }),
       prisma.cTO.count({ where: { images: { none: {} } } }),
       prisma.image.count(),
-      prisma.image.count({ where: { cto: { auditedById: null, status: { in: ["CORRECTO", "FALLO", "PENDIENTE"] } } } }),
-      prisma.image.count({ where: { cto: { auditedById: { not: null } } } }),
+      prisma.image.count({ where: { cto: { OR: [{ auditedById: null }, { auditedBy: { role: { not: "ADMIN" } } }] } } }),
+      prisma.image.count({ where: { cto: { auditedBy: { role: "ADMIN" } } } }),
       prisma.cTO.findMany({
         where: { status: { in: ["CORRECTO", "FALLO"] } },
         select: { id: true, _count: { select: { images: true } } }
       }),
-      prisma.cTO.count({ where: { status: "CORRECTO", auditedById: { not: null } } }),
-      prisma.cTO.count({ where: { status: { in: ["CORRECTO", "FALLO"] }, auditedById: null } })
+      prisma.cTO.count({ where: { status: "CORRECTO", auditedBy: { role: "ADMIN" } } }),
+      prisma.cTO.count({ where: { status: { in: ["CORRECTO", "FALLO"] }, OR: [{ auditedById: null }, { auditedBy: { role: { not: "ADMIN" } } }] } })
     ]);
 
     const incompletePhotosCount = closedCtosImagesCount.filter(c => c._count.images < 6).length;
