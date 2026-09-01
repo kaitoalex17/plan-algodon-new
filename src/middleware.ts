@@ -26,8 +26,14 @@ export async function middleware(req: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET,
   });
 
-  // 3. Si no hay cookie de sesión válida o se ha perdido, redirigir automáticamente a /login
+  // 3. Si no hay cookie de sesión válida o se ha perdido
   if (!token || !token.id) {
+    // Si es una petición API, devolver JSON 401 para que los clientes fetch no reciban un HTML <!DOCTYPE
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    // Si es una página web, redirigir a /login
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("callbackUrl", req.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
@@ -36,6 +42,9 @@ export async function middleware(req: NextRequest) {
   // 4. Protección para rutas de administración (/admin/...)
   if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
     if (token.role !== "ADMIN") {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      }
       return NextResponse.redirect(new URL("/", req.url));
     }
   }
