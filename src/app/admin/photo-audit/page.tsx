@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -297,6 +297,201 @@ export default function PhotoAuditPage() {
     await handleUpdateStatus(rejectModal.ctoId, "REPARAR", finalReason);
     setRejectModal(null);
     setRejectCustomReason("");
+    if (isTactileMode) {
+      setTactileIndex(prev => prev + 1);
+      setActivePhotoIndex(0);
+    }
+  };
+
+  // ==========================================
+  // LÓGICA DE MODO TÁCTIL (TIPO TINDER)
+  // ==========================================
+  const [isTactileMode, setIsTactileMode] = useState(false);
+  const [tactileIndex, setTactileIndex] = useState(0);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [swipeOffset, setSwipeOffset] = useState({ x: 0, y: 0 });
+  const [isSwiping, setIsSwiping] = useState(false);
+  const [swipeStart, setSwipeStart] = useState({ x: 0, y: 0 });
+  const [swipeAnim, setSwipeAnim] = useState<"right" | "left" | null>(null);
+  const [tactileHistory, setTactileHistory] = useState<Array<{ ctoId: string; prevStatus: string }>>([]);
+
+  // CTOs disponibles para modo táctil
+  const tactileCtos = useMemo(() => {
+    return ctos.filter(cto => {
+      if (selectedCategory !== "ALL" && hideWithoutCategory) {
+        const hasPhoto = cto.images.some(img => getPhotoCategoryInfo(img.url).key === selectedCategory);
+        if (!hasPhoto) return false;
+      }
+      return true;
+    });
+  }, [ctos, selectedCategory, hideWithoutCategory]);
+
+  const currentTactileCto = tactileCtos[tactileIndex];
+
+  // Fotos de la CTO activa en modo táctil
+  const currentTactilePhotos = useMemo(() => {
+    if (!currentTactileCto) return [];
+    if (selectedCategory === "ALL") return currentTactileCto.images;
+    const filtered = currentTactileCto.images.filter(img => getPhotoCategoryInfo(img.url).key === selectedCategory);
+    return filtered.length > 0 ? filtered : currentTactileCto.images;
+  }, [currentTactileCto, selectedCategory]);
+
+  // Handlers para aprobar (derecha) o mandar a reparar (izquierda)
+  const handleTactileApprove = useCallback((cto: AuditCTO) => {
+    setSwipeAnim("right");
+    setTactileHistory(prev => [...prev, { ctoId: cto.id, prevStatus: cto.status }]);
+
+    // Actualización optimista
+    setCtos(prev => prev.map(c => c.id === cto.id ? { ...c, status: "CORRECTO" as const } : c));
+    handleUpdateStatus(cto.id, "CORRECTO", "Validada en Modo Táctil (Derecha - Bien)");
+
+    setTimeout(() => {
+      setTactileIndex(prev => prev + 1);
+      setActivePhotoIndex(0);
+      setSwipeAnim(null);
+      setSwipeOffset({ x: 0, y: 0 });
+    }, 220);
+  }, [handleUpdateStatus]);
+
+  const handleTactileReject = useCallback((cto: AuditCTO, reason?: string) => {
+    setSwipeAnim("left");
+    setTactileHistory(prev => [...prev, { ctoId: cto.id, prevStatus: cto.status }]);
+
+    // Actualización optimista
+    setCtos(prev => prev.map(c => c.id === cto.id ? { ...c, status: "REPARAR" as const } : c));
+    handleUpdateStatus(cto.id, "REPARAR", reason || "Rechazada en Modo Táctil (Izquierda - Mandar a Reparar)");
+
+    setTimeout(() => {
+      setTactileIndex(prev => prev + 1);
+      setActivePhotoIndex(0);
+      setSwipeAnim(null);
+      setSwipeOffset({ x: 0, y: 0 });
+    }, 220);
+  }, [handleUpdateStatus]);
+
+  const handleTactileUndo = useCallback(() => {
+    if (tactileIndex <= 0 || tactileHistory.length === 0) return;
+    const lastItem = tactileHistory[tactileHistory.length - 1];
+    setTactileHistory(prev => prev.slice(0, -1));
+    setCtos(prev => prev.map(c => c.id === lastItem.ctoId ? { ...c, status: lastItem.prevStatus as any } : c));
+    handleUpdateStatus(lastItem.ctoId, lastItem.prevStatus as any, "Deshecho en Modo Táctil");
+    setTactileIndex(prev => Math.max(0, prev - 1));
+    setActivePhotoIndex(0);
+  }, [tactileIndex, tactileHistory, handleUpdateStatus]);
+
+  // Atajos de Teclado para Modo Táctil (Flecha Derecha: Bien, Flecha Izquierda: Mal, Flechas Arriba/Abajo: Fotos, Esc: Salir)
+  useEffect(() => {
+    if (!isTactileMode) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      const activeCto = tactileCtos[tactileIndex];
+
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (activeCto) handleTactileApprove(activeCto);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (activeCto) handleTactileReject(activeCto);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActivePhotoIndex(prev => Math.max(0, prev - 1));
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (activeCto && activeCto.images) {
+          setActivePhotoIndex(prev => Math.min(activeCto.images.length - 1, prev + 1));
+        }
+      } else if (e.key === "Escape") {
+        setIsTactileMode(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isTactileMode, tactileIndex, tactileCtos, handleTactileApprove, handleTactileReject]);
+
+  // Cargar más CTOs automáticamente cuando se aproxime al final del lote en modo táctil
+  useEffect(() => {
+    if (isTactileMode && hasMore && !loading && tactileIndex >= tactileCtos.length - 3) {
+      loadCtos(page + 1, false);
+    }
+  }, [isTactileMode, tactileIndex, tactileCtos.length, hasMore, loading, page]);
+
+  // Drag global con mouse para experiencia fluida
+  useEffect(() => {
+    if (!isSwiping) return;
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      setSwipeOffset({
+        x: e.clientX - swipeStart.x,
+        y: e.clientY - swipeStart.y
+      });
+    };
+
+    const handleGlobalMouseUp = (e: MouseEvent) => {
+      setIsSwiping(false);
+      const diffX = e.clientX - swipeStart.x;
+      const activeCto = tactileCtos[tactileIndex];
+      if (activeCto) {
+        if (diffX > 90) {
+          handleTactileApprove(activeCto);
+          return;
+        } else if (diffX < -90) {
+          handleTactileReject(activeCto);
+          return;
+        }
+      }
+      setSwipeOffset({ x: 0, y: 0 });
+    };
+
+    window.addEventListener("mousemove", handleGlobalMouseMove);
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleGlobalMouseMove);
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+    };
+  }, [isSwiping, swipeStart, tactileCtos, tactileIndex, handleTactileApprove, handleTactileReject]);
+
+  const handleCardTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    setIsSwiping(true);
+    setSwipeStart({ x: touch.clientX, y: touch.clientY });
+    setSwipeOffset({ x: 0, y: 0 });
+  };
+
+  const handleCardTouchMove = (e: React.TouchEvent) => {
+    if (!isSwiping) return;
+    const touch = e.touches[0];
+    setSwipeOffset({
+      x: touch.clientX - swipeStart.x,
+      y: touch.clientY - swipeStart.y
+    });
+  };
+
+  const handleCardTouchEnd = () => {
+    if (!isSwiping) return;
+    setIsSwiping(false);
+    const diffX = swipeOffset.x;
+    const activeCto = tactileCtos[tactileIndex];
+    if (activeCto) {
+      if (diffX > 90) {
+        handleTactileApprove(activeCto);
+        return;
+      } else if (diffX < -90) {
+        handleTactileReject(activeCto);
+        return;
+      }
+    }
+    setSwipeOffset({ x: 0, y: 0 });
+  };
+
+  const handleCardMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    setIsSwiping(true);
+    setSwipeStart({ x: e.clientX, y: e.clientY });
+    setSwipeOffset({ x: 0, y: 0 });
   };
 
   // Controles de Zoom
@@ -383,6 +578,35 @@ export default function PhotoAuditPage() {
             >
               <span>⚡</span>
               <span>Auto-auditar al scroll: {autoAuditOnScroll ? "ACTIVADO" : "DESACTIVADO"}</span>
+            </button>
+
+            {/* Botón Activar Modo Táctil (Tinder-style) */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsTactileMode(true);
+                setTactileIndex(0);
+                setActivePhotoIndex(0);
+              }}
+              style={{
+                background: "linear-gradient(135deg, #FF7900 0%, #ec4899 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                padding: "6px 14px",
+                fontSize: "0.8rem",
+                fontWeight: 900,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 2px 10px rgba(255, 121, 0, 0.35)",
+                transition: "all 0.2s"
+              }}
+              title="Abrir Modo Táctil: desliza a la derecha para Bien y a la izquierda para Mal"
+            >
+              <span>📱</span>
+              <span>Modo Táctil</span>
             </button>
 
             <span style={{ fontSize: "0.85rem", fontWeight: 700, background: "rgba(255, 121, 0, 0.15)", color: "var(--primary-color)", padding: "6px 12px", borderRadius: "8px" }}>
@@ -1644,6 +1868,612 @@ export default function PhotoAuditPage() {
           >
             Pausar
           </button>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* VISTA A PANTALLA COMPLETA: MODO TÁCTIL (TINDER-STYLE)     */}
+      {/* ========================================================= */}
+      {isTactileMode && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 99990,
+          background: "#080c14",
+          color: "#f8fafc",
+          display: "flex",
+          flexDirection: "column",
+          userSelect: "none",
+          overflow: "hidden"
+        }}>
+          {/* Barra Superior del Modo Táctil */}
+          <div style={{
+            padding: "12px 16px",
+            background: "rgba(15, 23, 42, 0.95)",
+            borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "10px",
+            backdropFilter: "blur(10px)"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <button
+                type="button"
+                onClick={() => setIsTactileMode(false)}
+                style={{
+                  background: "rgba(255, 255, 255, 0.08)",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  color: "#f8fafc",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
+                  fontSize: "0.8rem",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px"
+                }}
+              >
+                <span>✕</span> Salir del Modo Táctil
+              </button>
+
+              <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "var(--primary-color)" }}>
+                📱 Modo Táctil
+              </span>
+            </div>
+
+            {/* Progreso del Lote */}
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "0.8rem", fontWeight: 700, opacity: 0.8 }}>
+                {tactileIndex < tactileCtos.length
+                  ? `Caja ${tactileIndex + 1} de ${tactileCtos.length}`
+                  : `Completado (${tactileCtos.length} revisadas)`}
+              </span>
+              <div style={{
+                width: "90px",
+                height: "6px",
+                background: "rgba(255, 255, 255, 0.1)",
+                borderRadius: "4px",
+                overflow: "hidden"
+              }}>
+                <div style={{
+                  height: "100%",
+                  width: `${tactileCtos.length > 0 ? Math.min(100, ((tactileIndex) / tactileCtos.length) * 100) : 0}%`,
+                  background: "linear-gradient(90deg, #FF7900, #10b981)",
+                  transition: "width 0.2s"
+                }} />
+              </div>
+            </div>
+
+            {/* Filtro rápido de categoría dentro de Modo Táctil */}
+            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+              {[
+                { key: "ALL", label: "Todas", icon: "🖼️" },
+                { key: "potencia", label: "Potencia", icon: "💡" },
+                { key: "entorno", label: "Entorno", icon: "🏠" },
+                { key: "cto_abierta", label: "Abierta", icon: "🗄️" },
+                { key: "etiquetado_cto", label: "Etiqueta", icon: "🏷️" },
+              ].map(cat => (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategory(cat.key);
+                    setActivePhotoIndex(0);
+                  }}
+                  style={{
+                    background: selectedCategory === cat.key ? "var(--primary-color)" : "rgba(255, 255, 255, 0.05)",
+                    color: selectedCategory === cat.key ? "white" : "rgba(255, 255, 255, 0.7)",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "4px 8px",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    cursor: "pointer"
+                  }}
+                >
+                  <span>{cat.icon}</span> {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Área Central: Tarjeta Deslizable */}
+          <div style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+            position: "relative",
+            overflow: "hidden"
+          }}>
+            {tactileIndex >= tactileCtos.length ? (
+              /* PANTALLA DE FINALIZACIÓN DEL LOTE */
+              <div style={{
+                background: "rgba(15, 23, 42, 0.8)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                borderRadius: "20px",
+                padding: "36px 28px",
+                textAlign: "center",
+                maxWidth: "420px",
+                boxShadow: "0 10px 40px rgba(0,0,0,0.5)"
+              }}>
+                <span style={{ fontSize: "3rem", display: "block", marginBottom: "12px" }}>🎉</span>
+                <h2 style={{ fontSize: "1.4rem", fontWeight: 900, margin: "0 0 8px 0" }}>
+                  ¡Lote Revisado con Éxito!
+                </h2>
+                <p style={{ fontSize: "0.85rem", opacity: 0.75, margin: "0 0 20px 0" }}>
+                  Has revisado todas las cajas cargadas en esta sesión de Modo Táctil.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {hasMore && (
+                    <button
+                      type="button"
+                      onClick={() => loadCtos(page + 1, false)}
+                      style={{
+                        background: "var(--primary-color)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "10px",
+                        padding: "12px",
+                        fontSize: "0.9rem",
+                        fontWeight: 800,
+                        cursor: "pointer"
+                      }}
+                    >
+                      Cargar Siguiente Página de CTOs
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsTactileMode(false)}
+                    style={{
+                      background: "rgba(255, 255, 255, 0.1)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "10px",
+                      padding: "12px",
+                      fontSize: "0.9rem",
+                      fontWeight: 800,
+                      cursor: "pointer"
+                    }}
+                  >
+                    Volver al Feed Normal
+                  </button>
+                </div>
+              </div>
+            ) : currentTactileCto ? (
+              /* TARJETA TIPO TINDER DESLIZABLE */
+              <div
+                onMouseDown={handleCardMouseDown}
+                onTouchStart={handleCardTouchStart}
+                onTouchMove={handleCardTouchMove}
+                onTouchEnd={handleCardTouchEnd}
+                style={{
+                  width: "100%",
+                  maxWidth: "480px",
+                  height: "100%",
+                  maxHeight: "620px",
+                  background: "#0f172a",
+                  borderRadius: "20px",
+                  border: "1.5px solid rgba(255, 255, 255, 0.1)",
+                  boxShadow: "0 14px 40px rgba(0, 0, 0, 0.7)",
+                  display: "flex",
+                  flexDirection: "column",
+                  position: "relative",
+                  cursor: isSwiping ? "grabbing" : "grab",
+                  transform: swipeAnim === "right"
+                    ? "translateX(140%) rotate(25deg)"
+                    : swipeAnim === "left"
+                    ? "translateX(-140%) rotate(-25deg)"
+                    : `translate(${swipeOffset.x}px, ${swipeOffset.y * 0.15}px) rotate(${swipeOffset.x * 0.08}deg)`,
+                  transition: isSwiping ? "none" : "transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                  overflow: "hidden"
+                }}
+              >
+                {/* SELLO / WATERMARK: BIEN (DERECHA) */}
+                <div style={{
+                  position: "absolute",
+                  top: "24px",
+                  left: "24px",
+                  zIndex: 40,
+                  border: "4px solid #10b981",
+                  color: "#10b981",
+                  background: "rgba(16, 185, 129, 0.25)",
+                  borderRadius: "12px",
+                  padding: "6px 18px",
+                  fontWeight: 900,
+                  fontSize: "1.8rem",
+                  letterSpacing: "2px",
+                  textTransform: "uppercase",
+                  transform: "rotate(-18deg)",
+                  opacity: swipeAnim === "right" ? 1 : Math.min(1, Math.max(0, swipeOffset.x / 80)),
+                  pointerEvents: "none",
+                  boxShadow: "0 4px 20px rgba(16, 185, 129, 0.4)",
+                  transition: isSwiping ? "none" : "opacity 0.15s"
+                }}>
+                  ✓ BIEN
+                </div>
+
+                {/* SELLO / WATERMARK: REPARAR (IZQUIERDA) */}
+                <div style={{
+                  position: "absolute",
+                  top: "24px",
+                  right: "24px",
+                  zIndex: 40,
+                  border: "4px solid #ef4444",
+                  color: "#ef4444",
+                  background: "rgba(239, 68, 68, 0.25)",
+                  borderRadius: "12px",
+                  padding: "6px 18px",
+                  fontWeight: 900,
+                  fontSize: "1.8rem",
+                  letterSpacing: "2px",
+                  textTransform: "uppercase",
+                  transform: "rotate(18deg)",
+                  opacity: swipeAnim === "left" ? 1 : Math.min(1, Math.max(0, -swipeOffset.x / 80)),
+                  pointerEvents: "none",
+                  boxShadow: "0 4px 20px rgba(239, 68, 68, 0.4)",
+                  transition: isSwiping ? "none" : "opacity 0.15s"
+                }}>
+                  ✕ REPARAR
+                </div>
+
+                {/* HISTORIAS / INDICADORES DE FOTOS SUPERIORES (Estilo Instagram/Tinder) */}
+                {currentTactilePhotos.length > 1 && (
+                  <div style={{
+                    display: "flex",
+                    gap: "4px",
+                    position: "absolute",
+                    top: "10px",
+                    left: "12px",
+                    right: "12px",
+                    zIndex: 30
+                  }}>
+                    {currentTactilePhotos.map((_, i) => (
+                      <div
+                        key={i}
+                        onClick={(e) => { e.stopPropagation(); setActivePhotoIndex(i); }}
+                        style={{
+                          flex: 1,
+                          height: "4px",
+                          borderRadius: "2px",
+                          background: i === activePhotoIndex ? "var(--primary-color)" : "rgba(255, 255, 255, 0.35)",
+                          cursor: "pointer",
+                          transition: "background 0.2s"
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* IMAGEN PRINCIPAL / VISOR */}
+                <div style={{
+                  flex: 1,
+                  position: "relative",
+                  background: "#000",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "hidden"
+                }}>
+                  {currentTactilePhotos.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "20px" }}>
+                      <span style={{ fontSize: "3.5rem", display: "block", marginBottom: "10px" }}>⚠️</span>
+                      <strong style={{ fontSize: "1rem", color: "#f59e0b", display: "block" }}>
+                        Sin evidencias fotográficas
+                      </strong>
+                      <span style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+                        Esta caja no tiene fotografías cargadas
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <img
+                        src={currentTactilePhotos[activePhotoIndex]?.url}
+                        alt={`Foto ${currentTactileCto.num}`}
+                        draggable={false}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "contain",
+                          display: "block",
+                          pointerEvents: "none"
+                        }}
+                      />
+
+                      {/* Pill con Categoría Detectada */}
+                      {currentTactilePhotos[activePhotoIndex] && (() => {
+                        const cat = getPhotoCategoryInfo(currentTactilePhotos[activePhotoIndex].url);
+                        return (
+                          <div style={{
+                            position: "absolute",
+                            bottom: "12px",
+                            left: "14px",
+                            zIndex: 25,
+                            background: "rgba(0, 0, 0, 0.75)",
+                            border: `1px solid ${cat.color}`,
+                            backdropFilter: "blur(6px)",
+                            borderRadius: "8px",
+                            padding: "4px 10px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            fontSize: "0.76rem",
+                            fontWeight: 800,
+                            color: cat.color
+                          }}>
+                            <span>{cat.icon}</span> {cat.name}
+                            <span style={{ opacity: 0.6, fontSize: "0.7rem" }}>
+                              ({activePhotoIndex + 1}/{currentTactilePhotos.length})
+                            </span>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Botón Lupa en esquina superior derecha de la foto */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (currentTactilePhotos[activePhotoIndex]) {
+                            openZoom(currentTactilePhotos[activePhotoIndex].url, currentTactileCto, activePhotoIndex);
+                          }
+                        }}
+                        style={{
+                          position: "absolute",
+                          top: "22px",
+                          right: "12px",
+                          zIndex: 25,
+                          background: "rgba(0,0,0,0.6)",
+                          border: "1px solid rgba(255,255,255,0.2)",
+                          color: "white",
+                          borderRadius: "8px",
+                          padding: "5px 10px",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          cursor: "pointer"
+                        }}
+                      >
+                        🔍 Zoom
+                      </button>
+
+                      {/* Zonas de toque para foto anterior / siguiente */}
+                      {currentTactilePhotos.length > 1 && (
+                        <>
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActivePhotoIndex(p => Math.max(0, p - 1));
+                            }}
+                            title="Foto anterior"
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              left: 0,
+                              width: "35%",
+                              height: "100%",
+                              zIndex: 20,
+                              cursor: "pointer"
+                            }}
+                          />
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActivePhotoIndex(p => Math.min(currentTactilePhotos.length - 1, p + 1));
+                            }}
+                            title="Siguiente foto"
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              right: 0,
+                              width: "35%",
+                              height: "100%",
+                              zIndex: 20,
+                              cursor: "pointer"
+                            }}
+                          />
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* INFO INFERIOR DE LA CTO */}
+                <div style={{
+                  padding: "14px 18px",
+                  background: "rgba(15, 23, 42, 0.98)",
+                  borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "10px"
+                }}>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "2px" }}>
+                      <span style={{ fontSize: "1.3rem", fontWeight: 900, color: "var(--primary-color)" }}>
+                        {currentTactileCto.num}
+                      </span>
+                      {currentTactileCto.cluster && (
+                        <span style={{ background: "rgba(59, 130, 246, 0.2)", color: "#3b82f6", fontSize: "0.74rem", fontWeight: 800, padding: "2px 8px", borderRadius: "6px" }}>
+                          📁 {currentTactileCto.cluster}
+                        </span>
+                      )}
+                      {currentTactileCto.municipio && (
+                        <span style={{ fontSize: "0.76rem", opacity: 0.75 }}>
+                          📍 {currentTactileCto.municipio}
+                        </span>
+                      )}
+                    </div>
+                    {currentTactileCto.assignedTo && (
+                      <span style={{ fontSize: "0.76rem", display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: currentTactileCto.assignedTo.color || "#FF7900" }} />
+                        {currentTactileCto.assignedTo.name}
+                      </span>
+                    )}
+                  </div>
+
+                  <span style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 800,
+                    padding: "3px 10px",
+                    borderRadius: "12px",
+                    background: currentTactileCto.status === "CORRECTO"
+                      ? "rgba(16, 185, 129, 0.2)"
+                      : currentTactileCto.status === "REPARAR"
+                      ? "rgba(139, 92, 246, 0.2)"
+                      : currentTactileCto.status === "FALLO"
+                      ? "rgba(239, 68, 68, 0.2)"
+                      : "rgba(245, 158, 11, 0.2)",
+                    color: currentTactileCto.status === "CORRECTO"
+                      ? "#10b981"
+                      : currentTactileCto.status === "REPARAR"
+                      ? "#8b5cf6"
+                      : currentTactileCto.status === "FALLO"
+                      ? "#ef4444"
+                      : "#f59e0b"
+                  }}>
+                    {currentTactileCto.status === "CORRECTO"
+                      ? "✓ CORRECTO"
+                      : currentTactileCto.status === "REPARAR"
+                      ? "A REPARAR"
+                      : currentTactileCto.status === "FALLO"
+                      ? "✕ FALLO"
+                      : "⏳ PENDIENTE"}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {/* BOTONES DE ACCIÓN TÁCTIL ESTILO TINDER */}
+          {tactileIndex < tactileCtos.length && currentTactileCto && (
+            <div style={{
+              padding: "16px 20px 24px",
+              background: "rgba(15, 23, 42, 0.95)",
+              borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: "18px",
+              backdropFilter: "blur(8px)"
+            }}>
+              {/* Botón Deshacer */}
+              <button
+                type="button"
+                onClick={handleTactileUndo}
+                disabled={tactileIndex === 0}
+                style={{
+                  width: "46px",
+                  height: "46px",
+                  borderRadius: "50%",
+                  background: "rgba(255, 255, 255, 0.08)",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  color: tactileIndex > 0 ? "#f59e0b" : "rgba(255, 255, 255, 0.25)",
+                  fontSize: "1.2rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: tactileIndex > 0 ? "pointer" : "not-allowed",
+                  transition: "all 0.15s"
+                }}
+                title="Deshacer última caja (volver atrás)"
+              >
+                ↩️
+              </button>
+
+              {/* BOTÓN IZQUIERDA: MAL (MANDAR A REPARAR) */}
+              <button
+                type="button"
+                onClick={() => handleTactileReject(currentTactileCto)}
+                style={{
+                  width: "68px",
+                  height: "68px",
+                  borderRadius: "50%",
+                  background: "rgba(239, 68, 68, 0.15)",
+                  border: "2.5px solid #ef4444",
+                  color: "#ef4444",
+                  fontSize: "1.8rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 20px rgba(239, 68, 68, 0.35)",
+                  transition: "transform 0.15s, background 0.15s"
+                }}
+                title="Deslizar Izquierda: MAL (Mandar a Reparar)"
+              >
+                ✕
+              </button>
+
+              {/* Botón Motivo Detallado */}
+              <button
+                type="button"
+                onClick={() => {
+                  const currentPhoto = currentTactilePhotos[activePhotoIndex];
+                  const catName = currentPhoto ? getPhotoCategoryInfo(currentPhoto.url).name : "General";
+                  openRejectModal(currentTactileCto, currentPhoto?.id || "", catName);
+                }}
+                style={{
+                  width: "50px",
+                  height: "50px",
+                  borderRadius: "50%",
+                  background: "rgba(139, 92, 246, 0.15)",
+                  border: "1.5px solid #8b5cf6",
+                  color: "#8b5cf6",
+                  fontSize: "1.2rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  boxShadow: "0 2px 10px rgba(139, 92, 246, 0.25)",
+                  transition: "all 0.15s"
+                }}
+                title="Rechazar escribiendo un motivo específico para el técnico"
+              >
+                💬
+              </button>
+
+              {/* BOTÓN DERECHA: BIEN (APROBAR / CORRECTO) */}
+              <button
+                type="button"
+                onClick={() => handleTactileApprove(currentTactileCto)}
+                style={{
+                  width: "68px",
+                  height: "68px",
+                  borderRadius: "50%",
+                  background: "rgba(16, 185, 129, 0.15)",
+                  border: "2.5px solid #10b981",
+                  color: "#10b981",
+                  fontSize: "1.8rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 20px rgba(16, 185, 129, 0.35)",
+                  transition: "transform 0.15s, background 0.15s"
+                }}
+                title="Deslizar Derecha: BIEN (Marcar Correcto)"
+              >
+                ✓
+              </button>
+            </div>
+          )}
+
+          {/* Ayuda de Atajos en Pie */}
+          <div style={{
+            padding: "4px 16px 8px",
+            background: "rgba(15, 23, 42, 0.95)",
+            textAlign: "center",
+            fontSize: "0.72rem",
+            opacity: 0.6
+          }}>
+            Teclado: <strong>← Izquierda: Mal</strong> • <strong>→ Derecha: Bien</strong> • <strong>↑↓: Cambiar Foto</strong> • <strong>Esc: Salir</strong>
+          </div>
         </div>
       )}
 
