@@ -1531,14 +1531,14 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                       <>
                         <option value="PENDIENTE">PENDIENTE</option>
                         <option value="REVISADO">REVISADO</option>
-                        <option value="REPARAR">🛠️ REPARAR</option>
+                        <option value="REPARAR">REPARAR</option>
                         <option value="FALLO">FALLO</option>
                       </>
                     ) : (
                       <>
                         <option value="PENDIENTE">PENDIENTE</option>
                         <option value="CORRECTO">CORRECTO</option>
-                        <option value="REPARAR">🛠️ REPARAR</option>
+                        <option value="REPARAR">REPARAR</option>
                         <option value="FALLO">FALLO</option>
                       </>
                     )}

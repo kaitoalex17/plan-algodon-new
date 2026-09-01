@@ -786,6 +786,78 @@ function PhotoGuideContent() {
     });
   };
 
+  const downloadAllPhotosOrdered = async () => {
+    if (!images || images.length === 0) {
+      alert("No hay fotos registradas para descargar en esta CTO.");
+      return;
+    }
+
+    // Orden de categorías estricto y profesional
+    const categoryOrder = [
+      { key: "entorno", prefix: "01_entorno", match: ["entorno"] },
+      { key: "cto_abierta", prefix: "02_cto_abierta", match: ["abierta", "interior"] },
+      { key: "etiquetado_cto", prefix: "03_etiquetado_cto", match: ["etiquetado_cto", "etiqueta_cto"] },
+      { key: "etiquetado_cableado", prefix: "04_etiquetado_cableado", match: ["cableado", "cable"] },
+      { key: "potencia", prefix: "05_potencia", match: ["potencia", "laser", "dbm"] },
+      { key: "coordenadas", prefix: "06_coordenadas", match: ["coordenadas", "mapa", "satellite", "satelite"] },
+      { key: "otras", prefix: "07_otras", match: [] }
+    ];
+
+    const classified: { orderIdx: number; prefix: string; img: any }[] = [];
+
+    images.forEach(img => {
+      const urlLower = (img.url || "").toLowerCase();
+      let found = false;
+      for (let i = 0; i < categoryOrder.length - 1; i++) {
+        const cat = categoryOrder[i];
+        if (cat.match.some(m => urlLower.includes(m))) {
+          classified.push({ orderIdx: i + 1, prefix: cat.prefix, img });
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        classified.push({ orderIdx: 7, prefix: "07_otras", img });
+      }
+    });
+
+    classified.sort((a, b) => a.orderIdx - b.orderIdx);
+
+    const now = new Date();
+    const dayStr = String(now.getDate()).padStart(2, "0");
+    const monthStr = String(now.getMonth() + 1).padStart(2, "0");
+    const yearStr = String(now.getFullYear()).slice(-2);
+    const datePattern = `${dayStr}${monthStr}${yearStr}`;
+    const cleanCto = (cto?.num || "CTO").replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    const prefixCounter: { [key: string]: number } = {};
+
+    for (let i = 0; i < classified.length; i++) {
+      const item = classified[i];
+      prefixCounter[item.prefix] = (prefixCounter[item.prefix] || 0) + 1;
+      const count = prefixCounter[item.prefix];
+      const suffix = count > 1 ? `_${count}` : "";
+      const downloadName = `${item.prefix}${suffix}_${cleanCto}_${datePattern}.jpg`;
+
+      try {
+        const response = await fetch(item.img.url);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = blobUrl;
+        a.download = downloadName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+        await new Promise(r => setTimeout(r, 260));
+      } catch (e) {
+        console.error("Error descargando foto:", item.img.url, e);
+      }
+    }
+  };
+
   return (
     <div className={`theme-${currentTheme}`} style={{ minHeight: "100vh", background: "var(--bg-color)", color: "var(--text-color)", display: "flex", flexDirection: "column" }}>
       
@@ -794,9 +866,15 @@ function PhotoGuideContent() {
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button
             type="button"
-            onClick={() => window.close()}
+            onClick={() => {
+              if (window.history.length > 1) {
+                router.back();
+              } else {
+                router.push(`/?cto=${encodeURIComponent(cto?.num || "")}`);
+              }
+            }}
             style={{ background: "var(--bg-color)", border: "1px solid var(--border-color)", color: "var(--text-color)", borderRadius: "6px", width: "30px", height: "30px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.95rem", fontWeight: 800 }}
-            title="Volver"
+            title="Volver al mapa"
           >
             ✕
           </button>
@@ -812,6 +890,33 @@ function PhotoGuideContent() {
 
         {/* Acciones de Descarga y Estado */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+          {/* Botón Descargar Todo en Orden Numérico Estricto */}
+          <button
+            type="button"
+            onClick={downloadAllPhotosOrdered}
+            style={{
+              background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              padding: "5px 10px",
+              fontSize: "0.72rem",
+              fontWeight: 800,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+              boxShadow: "0 1px 4px rgba(2, 132, 199, 0.25)"
+            }}
+            title="Descargar todas las fotos en orden numérico (01_entorno, 02_cto_abierta, etc.)"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>Descargar Todo ({images.length})</span>
+          </button>
           {/* Botón Descargar Fotos Antala directas */}
           <button
             type="button"

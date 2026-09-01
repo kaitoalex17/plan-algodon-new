@@ -370,7 +370,7 @@ export default function PhotoAuditPage() {
                   gap: "6px"
                 }}
               >
-                <span>🛠️</span> Ver A Reparar ({stats.repairCount})
+                Ver A Reparar ({stats.repairCount})
               </button>
             )}
           </div>
@@ -409,7 +409,7 @@ export default function PhotoAuditPage() {
                 color: statusFilter === "REPARAR" ? "white" : "var(--text-color)"
               }}
             >
-              🛠️ A Reparar ({stats.repairCount})
+              A Reparar ({stats.repairCount})
             </button>
             <button
               onClick={() => { setStatusFilter("CORRECTO"); setPage(1); }}
@@ -605,7 +605,7 @@ export default function PhotoAuditPage() {
                         {cto.status === "CORRECTO"
                           ? "✓ BIEN (CORRECTO)"
                           : cto.status === "REPARAR"
-                          ? "🛠️ A REPARAR"
+                          ? "A REPARAR"
                           : cto.status === "FALLO"
                           ? "✕ CON FALLO"
                           : "⏳ PENDIENTE"}
@@ -655,7 +655,7 @@ export default function PhotoAuditPage() {
                           transition: "all 0.15s"
                         }}
                       >
-                        <span>🛠️</span> Mandar a Reparar
+                        Mandar a Reparar
                       </button>
 
                       <button
@@ -900,7 +900,7 @@ export default function PhotoAuditPage() {
                           {cto.status === "CORRECTO"
                             ? "✓ CORRECTO"
                             : cto.status === "REPARAR"
-                            ? "🛠️ EN REPARACIÓN"
+                            ? "EN REPARACIÓN"
                             : cto.status === "FALLO"
                             ? "✕ CON FALLO"
                             : "⏳ PENDIENTE"}
@@ -949,7 +949,7 @@ export default function PhotoAuditPage() {
                             boxShadow: cto.status === "REPARAR" ? "0 2px 8px rgba(139,92,246,0.3)" : "none"
                           }}
                         >
-                          <span>🛠️</span> Mandar a Reparar
+                          Mandar a Reparar
                         </button>
 
                         <button
@@ -1208,7 +1208,7 @@ export default function PhotoAuditPage() {
                   cursor: "pointer"
                 }}
               >
-                🛠️ A Reparar
+                A Reparar
               </button>
 
               <button

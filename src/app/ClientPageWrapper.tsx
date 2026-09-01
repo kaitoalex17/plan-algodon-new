@@ -73,12 +73,9 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
 
   const currentUserId = (session?.user as any)?.id;
   const repairCtos = useMemo(() => {
-    return ctos.filter((c: any) => {
-      if (c.status !== "REPARAR") return false;
-      if (isAdmin) return true;
-      return c.assignedToId === currentUserId;
-    });
-  }, [ctos, isAdmin, currentUserId]);
+    if (!currentUserId) return [];
+    return ctos.filter((c: any) => c.status === "REPARAR" && c.assignedToId === currentUserId);
+  }, [ctos, currentUserId]);
 
   useEffect(() => {
     // Sincronizar tema con localStorage y clases globales de body y html
@@ -645,38 +642,38 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               </svg>
             </button>
 
-            {/* Botón Buzón de Notificaciones y CTOs a Reparar (📬 / 💬) */}
-            <button 
-              onClick={() => setShowRepairInboxModal(true)} 
-              className="btn" 
-              title={`Buzón de Reparaciones e Incidencias (${repairCtos.length} pendientes)`}
-              style={{ 
-                position: "relative",
-                padding: "6px 8px", 
-                background: repairCtos.length > 0 ? "rgba(139, 92, 246, 0.15)" : "var(--bg-color)", 
-                color: repairCtos.length > 0 ? "#8b5cf6" : "var(--text-color)", 
-                minHeight: "34px", display: "flex", alignItems: "center", justifyContent: "center", 
-                border: repairCtos.length > 0 ? "1.5px solid #8b5cf6" : "1px solid var(--border-color)", 
-                borderRadius: "6px", cursor: "pointer",
-                transition: "all 0.2s ease"
-              }}
-            >
-              <svg 
-                width="18" 
-                height="18" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2.3" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
+            {/* Botón Buzón de Notificaciones: Solo visible para usuarios que tengan CTOs asignadas para reparar */}
+            {repairCtos.length > 0 && (
+              <button 
+                onClick={() => setShowRepairInboxModal(true)} 
+                className="btn" 
+                title={`Buzón de Reparaciones e Incidencias (${repairCtos.length} pendientes)`}
+                style={{ 
+                  position: "relative",
+                  padding: "6px 8px", 
+                  background: "rgba(139, 92, 246, 0.15)", 
+                  color: "#8b5cf6", 
+                  minHeight: "34px", display: "flex", alignItems: "center", justifyContent: "center", 
+                  border: "1.5px solid #8b5cf6", 
+                  borderRadius: "6px", cursor: "pointer",
+                  transition: "all 0.2s ease"
+                }}
               >
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                <path d="M8 9h8" />
-                <path d="M8 13h5" />
-              </svg>
+                <svg 
+                  width="18" 
+                  height="18" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2.3" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  <path d="M8 9h8" />
+                  <path d="M8 13h5" />
+                </svg>
 
-              {repairCtos.length > 0 && (
                 <span style={{
                   position: "absolute",
                   top: "-5px",
@@ -692,8 +689,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                 }}>
                   {repairCtos.length}
                 </span>
-              )}
-            </button>
+              </button>
+            )}
             {isAdmin && (
               <button 
                 onClick={() => window.location.href = "/admin"} 
@@ -858,7 +855,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                   <option value="">Todos</option>
                   <option value="PENDIENTE">PENDIENTE</option>
                   <option value="CORRECTO">CORRECTO</option>
-                  <option value="REPARAR">🛠️ REPARAR</option>
+                  <option value="REPARAR">REPARAR</option>
                   <option value="FALLO">FALLO</option>
                 </select>
               </div>
@@ -1095,7 +1092,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                             background: cto.status === "CORRECTO" || cto.status === "REVISADO" ? "#d1fae5" : cto.status === "REPARAR" ? "#ede9fe" : cto.status === "FALLO" ? "#fee2e2" : "#f3f4f6",
                             color: cto.status === "CORRECTO" || cto.status === "REVISADO" ? "#065f46" : cto.status === "REPARAR" ? "#6d28d9" : cto.status === "FALLO" ? "#991b1b" : "#374151"
                           }}>
-                            {cto.status === "REPARAR" ? "🛠️ REPARAR" : cto.status}
+                            {cto.status}
                           </span>
                         </div>
 
@@ -2000,7 +1997,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                               </span>
                             )}
                             <span style={{ fontSize: "0.68rem", fontWeight: 800, padding: "2px 6px", borderRadius: "8px", background: "rgba(139, 92, 246, 0.2)", color: "#8b5cf6" }}>
-                              🛠️ REPARAR
+                              REPARAR
                             </span>
                           </div>
 

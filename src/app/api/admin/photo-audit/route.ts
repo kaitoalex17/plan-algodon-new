@@ -146,8 +146,8 @@ export async function PATCH(req: NextRequest) {
             ctoId,
             userId: currentUserId,
             text: newStatus === "REPARAR"
-              ? `🛠️ [REPARACIÓN SOLICITADA]: ${reason}`
-              : `✕ [INCIDENCIA DETECTADA]: ${reason}`
+              ? `[REPARACIÓN SOLICITADA]: ${reason}`
+              : `[INCIDENCIA DETECTADA]: ${reason}`
           }
         });
       } catch (comErr) {

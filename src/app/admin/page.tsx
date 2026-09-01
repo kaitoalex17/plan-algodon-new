@@ -229,6 +229,12 @@ export default function AdminPage() {
               </svg>
               Historial de Cambios / Control
             </Link>
+            <Link href="/admin/repair" className="btn" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)', color: 'white', border: 'none', justifyContent: 'center', padding: '0.85rem', gap: '8px', fontWeight: 800, boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+              </svg>
+              Control de CTOs en REPARAR
+            </Link>
             <Link href="/admin/photo-audit" className="btn" style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: 'white', border: 'none', justifyContent: 'center', padding: '0.85rem', gap: '8px', fontWeight: 800, boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
