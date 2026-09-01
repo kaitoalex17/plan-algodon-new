@@ -261,6 +261,21 @@ export default function AdminPage() {
               </svg>
               📅 Informe por Período de Auditoría
             </Link>
+            <Link href="/admin/active-sessions" className="btn" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', border: 'none', justifyContent: 'center', padding: '0.85rem', gap: '8px', fontWeight: 800, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              🔐 Control de Accesos y Sesiones Activas
+            </Link>
+            <Link href="/admin/tech-map" className="btn" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', color: 'white', border: 'none', justifyContent: 'center', padding: '0.85rem', gap: '8px', fontWeight: 800, boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                <line x1="8" y1="2" x2="8" y2="18" />
+                <line x1="16" y1="6" x2="16" y2="22" />
+              </svg>
+              🗺️ Última Ubicación de Técnicos (Mapa en Vivo)
+            </Link>
             <Link href="/admin/technicians-sync" className="btn" style={{ background: 'linear-gradient(135deg, #FF7900 0%, #ea580c 100%)', color: 'white', justifyContent: 'center', padding: '0.75rem', gap: '8px', fontWeight: 800, boxShadow: '0 4px 10px rgba(255, 121, 0, 0.3)' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
