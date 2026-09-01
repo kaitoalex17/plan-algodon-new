@@ -29,15 +29,8 @@ type TechStat = {
 };
 
 export default function ClientPageWrapper({ initialCtos, initialMapState }: { initialCtos: any[]; initialMapState: any }) {
-  const { data: session, status: authStatus } = useSession();
+  const { data: session } = useSession();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
-
-  // Redirección inmediata a login si se pierde la cookie o se invalida la sesión
-  useEffect(() => {
-    if (authStatus === "unauthenticated") {
-      window.location.href = "/login";
-    }
-  }, [authStatus]);
 
   const [selectedCto, setSelectedCto] = useState<any>(null);
   const [ctos, setCtos] = useState(initialCtos);
