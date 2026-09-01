@@ -186,7 +186,7 @@ export default function PhotoAuditPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-color, #0f172a)", color: "var(--text-color, #f8fafc)", padding: "16px" }}>
-      <div style={{ maxWidth: "1300px", margin: "0 auto" }}>
+      <div style={{ maxWidth: "860px", margin: "0 auto" }}>
 
         {/* Cabecera y Navegación */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
@@ -452,69 +452,156 @@ export default function PhotoAuditPage() {
 
                   </div>
 
-                  {/* Carrusel / Malla de Imágenes de la CTO */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
-                    gap: "10px",
-                    background: "rgba(0,0,0,0.1)",
-                    padding: "10px",
-                    borderRadius: "10px"
-                  }}>
-                    {cto.images.map((img, idx) => (
-                      <div
-                        key={img.id}
-                        onClick={() => openZoom(img.url, cto, idx)}
-                        title="Pincha para hacer zoom y ver en grande"
-                        style={{
-                          position: "relative",
-                          aspectRatio: "1/1",
-                          borderRadius: "8px",
-                          overflow: "hidden",
-                          border: "1.5px solid var(--border-color)",
-                          cursor: "zoom-in",
-                          background: "#000",
-                          transition: "transform 0.15s, box-shadow 0.15s"
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = "scale(1.03)";
-                          e.currentTarget.style.boxShadow = "0 4px 10px rgba(0,0,0,0.3)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = "scale(1)";
-                          e.currentTarget.style.boxShadow = "none";
-                        }}
-                      >
-                        <img
-                          src={img.url}
-                          alt={`Evidencia ${idx + 1}`}
-                          loading="lazy"
+                  {/* Visor Grande de Fotos Tipo Feed (Instagram / Facebook) */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "4px" }}>
+                    
+                    {/* Fotos Grandes en Cascada / Feed */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                      {cto.images.map((img, idx) => (
+                        <div
+                          key={img.id}
                           style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                            display: "block"
+                            background: "#050811",
+                            borderRadius: "12px",
+                            overflow: "hidden",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            boxShadow: "0 4px 14px rgba(0,0,0,0.25)"
                           }}
-                        />
-                        <div style={{
-                          position: "absolute",
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)",
-                          color: "white",
-                          fontSize: "0.68rem",
-                          fontWeight: 800,
-                          padding: "4px 6px",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center"
-                        }}>
-                          <span>Foto {idx + 1}</span>
-                          <span>🔍 Zoom</span>
+                        >
+                          {/* Cabecera de la Foto */}
+                          <div style={{ padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                            <span style={{ fontSize: "0.82rem", fontWeight: 800, color: "var(--primary-color)" }}>
+                              📷 Evidencia #{idx + 1} de {cto.images.length}
+                            </span>
+                            <button
+                              onClick={() => openZoom(img.url, cto, idx)}
+                              style={{
+                                background: "rgba(255,255,255,0.1)",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "6px",
+                                padding: "4px 10px",
+                                fontSize: "0.75rem",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px"
+                              }}
+                            >
+                              <span>🔍</span> Ampliar / Lupa
+                            </button>
+                          </div>
+
+                          {/* Imagen Grande en Alta Definición */}
+                          <div
+                            onClick={() => openZoom(img.url, cto, idx)}
+                            title="Haz clic para inspeccionar con zoom"
+                            style={{
+                              position: "relative",
+                              width: "100%",
+                              maxHeight: "560px",
+                              minHeight: "260px",
+                              background: "#000",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "zoom-in",
+                              overflow: "hidden"
+                            }}
+                          >
+                            <img
+                              src={img.url}
+                              alt={`Evidencia ${cto.num} - ${idx + 1}`}
+                              loading="lazy"
+                              style={{
+                                width: "100%",
+                                maxHeight: "560px",
+                                objectFit: "contain",
+                                display: "block"
+                              }}
+                            />
+                          </div>
                         </div>
+                      ))}
+                    </div>
+
+                    {/* Barra Inferior de Acciones Rápidas de la CTO (Tipo Post) */}
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "12px 14px",
+                      background: "rgba(255,255,255,0.02)",
+                      borderRadius: "10px",
+                      border: "1px solid rgba(255,255,255,0.05)",
+                      marginTop: "4px",
+                      flexWrap: "wrap",
+                      gap: "10px"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontSize: "0.84rem", opacity: 0.8, fontWeight: 600 }}>
+                          Auditoría de CTO {cto.num}:
+                        </span>
+                        <span style={{
+                          fontSize: "0.76rem",
+                          fontWeight: 800,
+                          padding: "3px 10px",
+                          borderRadius: "20px",
+                          background: cto.status === "CORRECTO" ? "rgba(16, 185, 129, 0.2)" : cto.status === "FALLO" ? "rgba(239, 68, 68, 0.2)" : "rgba(245, 158, 11, 0.2)",
+                          color: cto.status === "CORRECTO" ? "#10b981" : cto.status === "FALLO" ? "#ef4444" : "#f59e0b"
+                        }}>
+                          {cto.status === "CORRECTO" ? "✓ CORRECTO" : cto.status === "FALLO" ? "✕ CON INCIDENCIA" : "⏳ PENDIENTE"}
+                        </span>
                       </div>
-                    ))}
+
+                      <div style={{ display: "flex", gap: "10px" }}>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateStatus(cto.id, "CORRECTO")}
+                          disabled={isUpdating}
+                          style={{
+                            background: cto.status === "CORRECTO" ? "#10b981" : "rgba(16, 185, 129, 0.15)",
+                            color: cto.status === "CORRECTO" ? "white" : "#10b981",
+                            border: "1.5px solid #10b981",
+                            borderRadius: "8px",
+                            padding: "8px 18px",
+                            fontWeight: 800,
+                            fontSize: "0.85rem",
+                            cursor: isUpdating ? "wait" : "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            boxShadow: cto.status === "CORRECTO" ? "0 2px 8px rgba(16,185,129,0.3)" : "none"
+                          }}
+                        >
+                          <span>👍</span> Fotos Correctas (Bien)
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateStatus(cto.id, "FALLO")}
+                          disabled={isUpdating}
+                          style={{
+                            background: cto.status === "FALLO" ? "#ef4444" : "rgba(239, 68, 68, 0.15)",
+                            color: cto.status === "FALLO" ? "white" : "#ef4444",
+                            border: "1.5px solid #ef4444",
+                            borderRadius: "8px",
+                            padding: "8px 18px",
+                            fontWeight: 800,
+                            fontSize: "0.85rem",
+                            cursor: isUpdating ? "wait" : "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            boxShadow: cto.status === "FALLO" ? "0 2px 8px rgba(239,68,68,0.3)" : "none"
+                          }}
+                        >
+                          <span>⚠️</span> Marcar Incidencia (Fallo)
+                        </button>
+                      </div>
+                    </div>
+
                   </div>
 
                 </div>
