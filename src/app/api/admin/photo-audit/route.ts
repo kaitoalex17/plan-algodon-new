@@ -23,16 +23,28 @@ export async function GET(req: NextRequest) {
 
     const skip = (page - 1) * limit;
 
-    const whereClause: any = {};
-
-    if (photosFilter === "WITH_PHOTOS" || onlyWithImages === "true") {
+    // Soporte para filtro de fotos incompletas en cajas cerradas por técnicos
+    let incompleteIds: string[] = [];
+    if (photosFilter === "INCOMPLETE" || statusFilter === "INCOMPLETE") {
+      const closedForIncomplete = await prisma.cTO.findMany({
+        where: { status: { in: ["CORRECTO", "FALLO"] } },
+        select: { id: true, _count: { select: { images: true } } }
+      });
+      incompleteIds = closedForIncomplete.filter(c => c._count.images < 6).map(c => c.id);
+      whereClause.id = { in: incompleteIds };
+    } else if (photosFilter === "WITH_PHOTOS" || onlyWithImages === "true") {
       whereClause.images = { some: {} };
     } else if (photosFilter === "WITHOUT_PHOTOS") {
       whereClause.images = { none: {} };
     }
-    // Si photosFilter === "ALL", no se añade restricción en images para que aparezcan todas, incluso sin fotos
 
-    if (statusFilter !== "ALL") {
+    if (statusFilter === "PENDIENTE_AUDITORIA") {
+      whereClause.status = { in: ["CORRECTO", "FALLO", "PENDIENTE"] };
+      whereClause.auditedById = null;
+    } else if (statusFilter === "AUDITADO_CORRECTO") {
+      whereClause.status = "CORRECTO";
+      whereClause.auditedById = { not: null };
+    } else if (statusFilter !== "ALL" && statusFilter !== "INCOMPLETE") {
       whereClause.status = statusFilter;
     }
 
@@ -63,7 +75,10 @@ export async function GET(req: NextRequest) {
       withoutPhotosCount,
       totalImagesCount,
       pendingImagesCount,
-      reviewedImagesCount
+      reviewedImagesCount,
+      closedCtosImagesCount,
+      auditedCorrectCount,
+      pendingAuditCount
     ] = await Promise.all([
       prisma.cTO.count({ where: whereClause }),
       prisma.cTO.findMany({
@@ -84,9 +99,18 @@ export async function GET(req: NextRequest) {
       prisma.cTO.count({ where: { status: "FALLO" } }),
       prisma.cTO.count({ where: { images: { none: {} } } }),
       prisma.image.count(),
-      prisma.image.count({ where: { cto: { status: "PENDIENTE" } } }),
-      prisma.image.count({ where: { cto: { status: { in: ["CORRECTO", "REPARAR", "FALLO"] } } } })
+      prisma.image.count({ where: { cto: { auditedById: null, status: { in: ["CORRECTO", "FALLO", "PENDIENTE"] } } } }),
+      prisma.image.count({ where: { cto: { auditedById: { not: null } } } }),
+      prisma.cTO.findMany({
+        where: { status: { in: ["CORRECTO", "FALLO"] } },
+        select: { id: true, _count: { select: { images: true } } }
+      }),
+      prisma.cTO.count({ where: { status: "CORRECTO", auditedById: { not: null } } }),
+      prisma.cTO.count({ where: { status: { in: ["CORRECTO", "FALLO"] }, auditedById: null } })
     ]);
+
+    const incompletePhotosCount = closedCtosImagesCount.filter(c => c._count.images < 6).length;
+    const closedByTechCount = closedCtosImagesCount.length;
 
     // Obtener lista de clústeres disponibles para filtros
     const clustersRaw = await prisma.cTO.findMany({
@@ -120,7 +144,11 @@ export async function GET(req: NextRequest) {
         withoutPhotosCount,
         totalImagesCount,
         pendingImagesCount,
-        reviewedImagesCount
+        reviewedImagesCount,
+        closedByTechCount,
+        auditedCorrectCount,
+        pendingAuditCount,
+        incompletePhotosCount
       }
     });
   } catch (error: any) {

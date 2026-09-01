@@ -55,6 +55,28 @@ export function getPhotoCategoryInfo(url: string) {
   return { key: "otras", name: "Otras Evidencias / Detalle", icon: "📷", color: "#94a3b8", bg: "rgba(148, 163, 184, 0.15)" };
 }
 
+// 6 Categorías oficiales requeridas para considerar una CTO completa de fotos
+export const REQUIRED_PHOTO_CATEGORIES = [
+  { key: "entorno", label: "Entorno" },
+  { key: "cto_abierta", label: "CTO Abierta" },
+  { key: "etiquetado_cto", label: "Etiqueta CTO" },
+  { key: "etiquetado_cableado", label: "Cableado" },
+  { key: "potencia", label: "Potencia" },
+  { key: "coordenadas", label: "Coordenadas" }
+];
+
+export function getCtoCompleteness(images: { url: string }[]) {
+  const presentKeys = new Set(images.map(img => getPhotoCategoryInfo(img.url).key));
+  const missing = REQUIRED_PHOTO_CATEGORIES.filter(rc => !presentKeys.has(rc.key));
+  return {
+    isComplete: missing.length === 0 && images.length >= 6,
+    missingCount: missing.length,
+    missingLabels: missing.map(m => m.label),
+    uploadedCount: images.length,
+    presentKeys
+  };
+}
+
 export default function PhotoAuditPage() {
   const router = useRouter();
   const { data: session, status: authStatus } = useSession();
@@ -67,8 +89,8 @@ export default function PhotoAuditPage() {
   const [totalCount, setTotalCount] = useState(0);
 
   // Filtros de Estado y Servidor
-  const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, CORRECTO, FALLO, PENDIENTE, REPARAR
-  const [photosFilter, setPhotosFilter] = useState("ALL"); // ALL (incluso sin fotos), WITH_PHOTOS, WITHOUT_PHOTOS
+  const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, PENDIENTE_AUDITORIA, AUDITADO_CORRECTO, REPARAR, FALLO, INCOMPLETE
+  const [photosFilter, setPhotosFilter] = useState("ALL"); // ALL, INCOMPLETE, WITH_PHOTOS, WITHOUT_PHOTOS
   const [selectedCluster, setSelectedCluster] = useState("");
   const [selectedTechnician, setSelectedTechnician] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -82,7 +104,11 @@ export default function PhotoAuditPage() {
     withoutPhotosCount: 0,
     totalImagesCount: 0,
     pendingImagesCount: 0,
-    reviewedImagesCount: 0
+    reviewedImagesCount: 0,
+    closedByTechCount: 0,
+    auditedCorrectCount: 0,
+    pendingAuditCount: 0,
+    incompletePhotosCount: 0
   });
 
   // Recuento de auditoría en vivo en esta sesión
@@ -121,6 +147,50 @@ export default function PhotoAuditPage() {
   // Estado de acción en curso por CTO
   const [updatingCtoId, setUpdatingCtoId] = useState<string | null>(null);
 
+  // Función central para auto-aprobar una caja al scrollear hacia abajo y dejarla arriba
+  const processAutoAudit = useCallback((ctoId: string, imagesCount: number) => {
+    if (processedCtoIds.current.has(ctoId)) return;
+    processedCtoIds.current.add(ctoId);
+
+    const adminUser = {
+      id: (session?.user as any)?.id || "admin",
+      name: session?.user?.name || "Administrador",
+      email: session?.user?.email || "",
+      color: "#10b981"
+    };
+
+    // Actualización optimista en interfaz
+    setCtos(prev => prev.map(c => c.id === ctoId ? {
+      ...c,
+      status: "CORRECTO" as const,
+      auditedBy: adminUser
+    } : c));
+
+    setAutoAuditedCount(prev => prev + 1);
+    setSessionReviewedCtos(prev => prev + 1);
+    setSessionReviewedPhotos(prev => prev + imagesCount);
+
+    setStats(prev => ({
+      ...prev,
+      auditedCorrectCount: prev.auditedCorrectCount + 1,
+      pendingAuditCount: Math.max(0, prev.pendingAuditCount - 1),
+      correctCount: prev.correctCount + 1,
+      pendingImagesCount: Math.max(0, prev.pendingImagesCount - imagesCount),
+      reviewedImagesCount: prev.reviewedImagesCount + imagesCount
+    }));
+
+    // Enviar aprobación al backend para que se registre en la base de datos con auditedById
+    fetch("/api/admin/photo-audit", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ctoId,
+        newStatus: "CORRECTO",
+        reason: "Auto-validada por scroll de auditoría rápida"
+      })
+    }).catch(e => console.error("Error en auto-auditoría por scroll:", e));
+  }, [session]);
+
   // Inicializar IntersectionObserver para la auto-auditoría al dejar cajas arriba
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -129,39 +199,21 @@ export default function PhotoAuditPage() {
       if (!autoAuditOnScroll) return;
 
       entries.forEach(entry => {
-        // La tarjeta ha salido completamente por la parte superior de la pantalla
-        if (!entry.isIntersecting && entry.boundingClientRect.bottom < 0) {
+        // La tarjeta ha salido por la parte superior de la pantalla (su borde inferior < 80)
+        if (!entry.isIntersecting && entry.boundingClientRect.bottom < 80) {
           const ctoId = entry.target.getAttribute("data-cto-id");
           const ctoStatus = entry.target.getAttribute("data-cto-status");
+          const isAudited = entry.target.getAttribute("data-cto-audited") === "true";
+          const isIncomplete = entry.target.getAttribute("data-cto-incomplete") === "true";
           const imagesCount = parseInt(entry.target.getAttribute("data-cto-images") || "0");
 
-          // Solo auto-aprobar cajas en PENDIENTE que tengan al menos 1 foto y no se hayan procesado ya
-          if (ctoId && ctoStatus === "PENDIENTE" && imagesCount > 0 && !processedCtoIds.current.has(ctoId)) {
-            processedCtoIds.current.add(ctoId);
-
-            // Actualización optimista en interfaz
-            setCtos(prev => prev.map(c => c.id === ctoId ? { ...c, status: "CORRECTO" as const } : c));
-            setAutoAuditedCount(prev => prev + 1);
-            setSessionReviewedCtos(prev => prev + 1);
-            setSessionReviewedPhotos(prev => prev + imagesCount);
-            setStats(prev => ({
-              ...prev,
-              pendingCount: Math.max(0, prev.pendingCount - 1),
-              correctCount: prev.correctCount + 1,
-              pendingImagesCount: Math.max(0, prev.pendingImagesCount - imagesCount),
-              reviewedImagesCount: prev.reviewedImagesCount + imagesCount
-            }));
-
-            // Enviar aprobación al backend
-            fetch("/api/admin/photo-audit", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                ctoId,
-                newStatus: "CORRECTO",
-                reason: "Auto-validada por scroll de auditoría rápida"
-              })
-            }).catch(e => console.error("Error en auto-auditoría por scroll:", e));
+          // Auto-aprobar si:
+          // 1. Tiene ID y no se ha procesado ya en esta sesión
+          // 2. No estaba ya auditada previamente
+          // 3. No está en REPARAR
+          // 4. Tiene al menos 1 foto y NO está incompleta (las incompletas se reservan para revisión manual/reparación)
+          if (ctoId && !processedCtoIds.current.has(ctoId) && !isAudited && ctoStatus !== "REPARAR" && imagesCount > 0 && !isIncomplete) {
+            processAutoAudit(ctoId, imagesCount);
           }
         }
       });
@@ -172,7 +224,41 @@ export default function PhotoAuditPage() {
     return () => {
       if (autoAuditObserver.current) autoAuditObserver.current.disconnect();
     };
-  }, [autoAuditOnScroll]);
+  }, [autoAuditOnScroll, processAutoAudit]);
+
+  // Listener de scroll continuo para asegurar que ninguna caja que quede arriba se salte
+  useEffect(() => {
+    if (!autoAuditOnScroll) return;
+
+    let timer: any = null;
+    const handleScroll = () => {
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        const cards = document.querySelectorAll("[data-cto-card='true']");
+        cards.forEach((card: any) => {
+          const rect = card.getBoundingClientRect();
+          if (rect.bottom < 80) {
+            const ctoId = card.getAttribute("data-cto-id");
+            const ctoStatus = card.getAttribute("data-cto-status");
+            const isAudited = card.getAttribute("data-cto-audited") === "true";
+            const isIncomplete = card.getAttribute("data-cto-incomplete") === "true";
+            const imagesCount = parseInt(card.getAttribute("data-cto-images") || "0");
+
+            if (ctoId && !processedCtoIds.current.has(ctoId) && !isAudited && ctoStatus !== "REPARAR" && imagesCount > 0 && !isIncomplete) {
+              processAutoAudit(ctoId, imagesCount);
+            }
+          }
+        });
+      }, 120);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (timer) clearTimeout(timer);
+    };
+  }, [autoAuditOnScroll, processAutoAudit]);
 
   const registerAutoAuditNode = useCallback((node: HTMLDivElement | null) => {
     if (node && autoAuditObserver.current) {
@@ -268,15 +354,28 @@ export default function PhotoAuditPage() {
 
       if (res.ok) {
         const data = await res.json();
-        setCtos(prev => prev.map(c => c.id === ctoId ? { ...c, status: newStatus } : c));
-        if (zoomedImage && zoomedImage.cto.id === ctoId) {
-          setZoomedImage(prev => prev ? { ...prev, cto: { ...prev.cto, status: newStatus } } : null);
-        }
         const targetCto = ctos.find(c => c.id === ctoId);
         const photoCount = targetCto?.images.length || 0;
-        const wasPending = targetCto?.status === "PENDIENTE";
+        const wasAudited = !!targetCto?.auditedBy;
 
-        if (wasPending && newStatus !== "PENDIENTE") {
+        const adminUser = {
+          id: (session?.user as any)?.id || "admin",
+          name: session?.user?.name || "Administrador",
+          email: session?.user?.email || "",
+          color: "#10b981"
+        };
+
+        setCtos(prev => prev.map(c => c.id === ctoId ? {
+          ...c,
+          status: newStatus,
+          auditedBy: newStatus !== "PENDIENTE" ? adminUser : null
+        } : c));
+
+        if (zoomedImage && zoomedImage.cto.id === ctoId) {
+          setZoomedImage(prev => prev ? { ...prev, cto: { ...prev.cto, status: newStatus, auditedBy: adminUser } } : null);
+        }
+
+        if (!wasAudited) {
           setSessionReviewedCtos(prev => prev + 1);
           setSessionReviewedPhotos(prev => prev + photoCount);
         }
@@ -284,12 +383,13 @@ export default function PhotoAuditPage() {
         // Actualizar contadores locales
         setStats(prev => ({
           ...prev,
-          pendingCount: Math.max(0, wasPending && newStatus !== "PENDIENTE" ? prev.pendingCount - 1 : prev.pendingCount),
-          pendingImagesCount: Math.max(0, wasPending && newStatus !== "PENDIENTE" ? prev.pendingImagesCount - photoCount : prev.pendingImagesCount),
-          reviewedImagesCount: wasPending && newStatus !== "PENDIENTE" ? prev.reviewedImagesCount + photoCount : prev.reviewedImagesCount,
+          pendingAuditCount: Math.max(0, !wasAudited ? prev.pendingAuditCount - 1 : prev.pendingAuditCount),
+          auditedCorrectCount: newStatus === "CORRECTO" ? prev.auditedCorrectCount + 1 : prev.auditedCorrectCount,
           repairCount: newStatus === "REPARAR" ? prev.repairCount + 1 : prev.repairCount,
           correctCount: newStatus === "CORRECTO" ? prev.correctCount + 1 : prev.correctCount,
-          falloCount: newStatus === "FALLO" ? prev.falloCount + 1 : prev.falloCount
+          falloCount: newStatus === "FALLO" ? prev.falloCount + 1 : prev.falloCount,
+          pendingImagesCount: Math.max(0, !wasAudited ? prev.pendingImagesCount - photoCount : prev.pendingImagesCount),
+          reviewedImagesCount: !wasAudited ? prev.reviewedImagesCount + photoCount : prev.reviewedImagesCount
         }));
       } else {
         alert("Error al actualizar el estado de la CTO");
@@ -642,7 +742,7 @@ export default function PhotoAuditPage() {
           </div>
         </div>
 
-        {/* PANEL DE RECUENTO EN VIVO DE FOTOS Y CAJAS */}
+        {/* PANEL DE RECUENTO EN VIVO DE CAJAS Y FOTOS AUDITADAS */}
         <div style={{
           background: "linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)",
           border: "1.5px solid rgba(255, 121, 0, 0.35)",
@@ -658,35 +758,49 @@ export default function PhotoAuditPage() {
             gap: "12px",
             marginBottom: "14px"
           }}>
-            {/* Fotos Revisadas */}
+            {/* Cajas Aprobadas / Validadas como Correctas */}
             <div style={{ background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.35)", borderRadius: "12px", padding: "12px 14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#10b981", textTransform: "uppercase" }}>Fotos Revisadas</span>
-                <span style={{ fontSize: "1.2rem" }}>📸</span>
+                <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#10b981", textTransform: "uppercase" }}>Cajas Aprobadas</span>
+                <span style={{ fontSize: "1.2rem" }}>✅</span>
               </div>
               <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#f8fafc", margin: "4px 0 2px" }}>
-                {stats.reviewedImagesCount}
+                {stats.auditedCorrectCount}
               </div>
               <span style={{ fontSize: "0.72rem", opacity: 0.75 }}>
-                {Math.min(100, Math.round(((stats.reviewedImagesCount) / (stats.totalImagesCount || (stats.pendingImagesCount + stats.reviewedImagesCount) || 1)) * 100))}% del total ({stats.totalImagesCount || (stats.pendingImagesCount + stats.reviewedImagesCount)} fotos)
+                {Math.min(100, Math.round(((stats.auditedCorrectCount) / (stats.closedByTechCount || 1)) * 100))}% de las cerradas por técnicos
               </span>
             </div>
 
-            {/* Fotos Pendientes */}
+            {/* Cajas Pendientes de Auditar */}
             <div style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.35)", borderRadius: "12px", padding: "12px 14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#f59e0b", textTransform: "uppercase" }}>Fotos Pendientes</span>
+                <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#f59e0b", textTransform: "uppercase" }}>Pendientes de Auditar</span>
                 <span style={{ fontSize: "1.2rem" }}>⏳</span>
               </div>
               <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#f8fafc", margin: "4px 0 2px" }}>
-                {stats.pendingImagesCount}
+                {stats.pendingAuditCount}
               </div>
               <span style={{ fontSize: "0.72rem", opacity: 0.75 }}>
-                En {stats.pendingCount} cajas pendientes
+                Cerradas por técnicos por revisar
               </span>
             </div>
 
-            {/* Cajas a Reparar / Taller */}
+            {/* Cajas Cerradas sin Completar Fotos */}
+            <div style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.35)", borderRadius: "12px", padding: "12px 14px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#ef4444", textTransform: "uppercase" }}>Cerradas Incompletas</span>
+                <span style={{ fontSize: "1.2rem" }}>⚠️</span>
+              </div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#ef4444", margin: "4px 0 2px" }}>
+                {stats.incompletePhotosCount}
+              </div>
+              <span style={{ fontSize: "0.72rem", opacity: 0.85, color: "#fca5a5" }}>
+                Cerradas sin las 6 fotos obligatorias
+              </span>
+            </div>
+
+            {/* Cajas a Reparar / Buzón de taller */}
             <div style={{ background: "rgba(139, 92, 246, 0.1)", border: "1px solid rgba(139, 92, 246, 0.35)", borderRadius: "12px", padding: "12px 14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#8b5cf6", textTransform: "uppercase" }}>A Reparar</span>
@@ -696,7 +810,7 @@ export default function PhotoAuditPage() {
                 {stats.repairCount}
               </div>
               <span style={{ fontSize: "0.72rem", opacity: 0.75 }}>
-                Cajas en buzón del técnico
+                Enviadas al buzón del técnico
               </span>
             </div>
 
@@ -707,18 +821,20 @@ export default function PhotoAuditPage() {
                 <span style={{ fontSize: "1.2rem" }}>⚡</span>
               </div>
               <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--primary-color)", margin: "4px 0 2px" }}>
-                +{sessionReviewedPhotos} <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-color)" }}>fotos</span>
+                +{sessionReviewedCtos} <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-color)" }}>cajas</span>
               </div>
               <span style={{ fontSize: "0.72rem", opacity: 0.8 }}>
-                +{sessionReviewedCtos} cajas procesadas hoy
+                +{sessionReviewedPhotos} fotos procesadas hoy
               </span>
             </div>
           </div>
 
-          {/* Fila 2: Barra de Progreso Global de Fotos */}
+          {/* Fila 2: Barra de Progreso de Fotos Auditadas */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px", fontSize: "0.76rem" }}>
-              <span style={{ fontWeight: 800, opacity: 0.85 }}>Progreso Global de Auditoría de Fotos</span>
+              <span style={{ fontWeight: 800, opacity: 0.85 }}>
+                📸 Recuento Global de Fotos: {stats.reviewedImagesCount} fotos revisadas de {stats.totalImagesCount || (stats.pendingImagesCount + stats.reviewedImagesCount)} fotos
+              </span>
               <span style={{ fontWeight: 900, color: "var(--primary-color)" }}>
                 {Math.min(100, Math.round(((stats.reviewedImagesCount) / (stats.totalImagesCount || (stats.pendingImagesCount + stats.reviewedImagesCount) || 1)) * 100))}% completado
               </span>
@@ -734,71 +850,104 @@ export default function PhotoAuditPage() {
             </div>
           </div>
 
-          {/* Botones de Acción Rápida del Banner */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
-            {statusFilter !== "PENDIENTE" && stats.pendingCount > 0 && (
-              <button
-                type="button"
-                onClick={() => { setStatusFilter("PENDIENTE"); setPage(1); }}
-                style={{
-                  background: "#f59e0b",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "6px 14px",
-                  fontWeight: 800,
-                  fontSize: "0.8rem",
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px"
-                }}
-              >
-                <span>⏳</span> Auditar Pendientes ({stats.pendingImagesCount} fotos)
-              </button>
-            )}
-            {stats.repairCount > 0 && statusFilter !== "REPARAR" && (
-              <button
-                type="button"
-                onClick={() => { setStatusFilter("REPARAR"); setPage(1); }}
-                style={{
-                  background: "#8b5cf6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "6px 14px",
-                  fontWeight: 800,
-                  fontSize: "0.8rem",
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px"
-                }}
-              >
-                Ver A Reparar ({stats.repairCount})
-              </button>
-            )}
-            {stats.withoutPhotosCount > 0 && photosFilter !== "WITHOUT_PHOTOS" && (
-              <button
-                type="button"
-                onClick={() => { setPhotosFilter("WITHOUT_PHOTOS"); setPage(1); }}
-                style={{
-                  background: "rgba(239, 68, 68, 0.15)",
-                  color: "#ef4444",
-                  border: "1px solid #ef4444",
-                  borderRadius: "8px",
-                  padding: "6px 14px",
-                  fontWeight: 800,
-                  fontSize: "0.8rem",
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px"
-                }}
-              >
-                ⚠️ Ver Sin Fotos ({stats.withoutPhotosCount})
-              </button>
-            )}
+          {/* Botones de Filtro Rápido del Dashboard */}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "14px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => { setStatusFilter("PENDIENTE_AUDITORIA"); setPhotosFilter("ALL"); setPage(1); }}
+              style={{
+                background: statusFilter === "PENDIENTE_AUDITORIA" ? "#f59e0b" : "rgba(245, 158, 11, 0.15)",
+                color: statusFilter === "PENDIENTE_AUDITORIA" ? "white" : "#f59e0b",
+                border: "1px solid #f59e0b",
+                borderRadius: "8px",
+                padding: "6px 12px",
+                fontWeight: 800,
+                fontSize: "0.78rem",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              <span>⏳</span> Pendientes de Auditar ({stats.pendingAuditCount})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setStatusFilter("INCOMPLETE"); setPhotosFilter("INCOMPLETE"); setPage(1); }}
+              style={{
+                background: statusFilter === "INCOMPLETE" ? "#ef4444" : "rgba(239, 68, 68, 0.15)",
+                color: statusFilter === "INCOMPLETE" ? "white" : "#ef4444",
+                border: "1px solid #ef4444",
+                borderRadius: "8px",
+                padding: "6px 12px",
+                fontWeight: 800,
+                fontSize: "0.78rem",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              <span>⚠️</span> Cerradas Incompletas ({stats.incompletePhotosCount})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setStatusFilter("AUDITADO_CORRECTO"); setPhotosFilter("ALL"); setPage(1); }}
+              style={{
+                background: statusFilter === "AUDITADO_CORRECTO" ? "#10b981" : "rgba(16, 185, 129, 0.15)",
+                color: statusFilter === "AUDITADO_CORRECTO" ? "white" : "#10b981",
+                border: "1px solid #10b981",
+                borderRadius: "8px",
+                padding: "6px 12px",
+                fontWeight: 800,
+                fontSize: "0.78rem",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              <span>✅</span> Aprobadas ({stats.auditedCorrectCount})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setStatusFilter("REPARAR"); setPhotosFilter("ALL"); setPage(1); }}
+              style={{
+                background: statusFilter === "REPARAR" ? "#8b5cf6" : "rgba(139, 92, 246, 0.15)",
+                color: statusFilter === "REPARAR" ? "white" : "#8b5cf6",
+                border: "1px solid #8b5cf6",
+                borderRadius: "8px",
+                padding: "6px 12px",
+                fontWeight: 800,
+                fontSize: "0.78rem",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              <span>📬</span> A Reparar ({stats.repairCount})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setStatusFilter("ALL"); setPhotosFilter("ALL"); setPage(1); }}
+              style={{
+                background: statusFilter === "ALL" && photosFilter === "ALL" ? "rgba(255, 255, 255, 0.2)" : "rgba(255, 255, 255, 0.08)",
+                color: "white",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                borderRadius: "8px",
+                padding: "6px 12px",
+                fontWeight: 800,
+                fontSize: "0.78rem",
+                cursor: "pointer"
+              }}
+            >
+              Ver Todas ({stats.closedByTechCount})
+            </button>
           </div>
         </div>
 
@@ -1069,6 +1218,10 @@ export default function PhotoAuditPage() {
                 return null;
               }
 
+              const completeness = getCtoCompleteness(cto.images);
+              const isAuditedByAdmin = !!cto.auditedBy;
+              const isAutoAuditedThisSession = processedCtoIds.current.has(cto.id);
+
               return (
                 <div
                   key={cto.id}
@@ -1076,14 +1229,19 @@ export default function PhotoAuditPage() {
                     if (isLast) lastElementRef(el);
                     registerAutoAuditNode(el);
                   }}
+                  data-cto-card="true"
                   data-cto-id={cto.id}
                   data-cto-status={cto.status}
+                  data-cto-audited={isAuditedByAdmin || isAutoAuditedThisSession ? "true" : "false"}
+                  data-cto-incomplete={completeness.isComplete ? "false" : "true"}
                   data-cto-images={cto.images.length}
                   style={{
                     background: "var(--card-bg, #1e293b)",
                     border: `1.5px solid ${
-                      cto.status === "CORRECTO"
-                        ? "rgba(16, 185, 129, 0.4)"
+                      isAutoAuditedThisSession || isAuditedByAdmin
+                        ? "rgba(16, 185, 129, 0.5)"
+                        : !completeness.isComplete
+                        ? "rgba(239, 68, 68, 0.6)"
                         : cto.status === "REPARAR"
                         ? "rgba(139, 92, 246, 0.5)"
                         : cto.status === "FALLO"
@@ -1092,7 +1250,7 @@ export default function PhotoAuditPage() {
                     }`,
                     borderRadius: "14px",
                     padding: "16px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                    boxShadow: isAutoAuditedThisSession ? "0 0 20px rgba(16, 185, 129, 0.25)" : "0 4px 12px rgba(0,0,0,0.06)",
                     transition: "all 0.2s"
                   }}
                 >
@@ -1124,25 +1282,36 @@ export default function PhotoAuditPage() {
                         </span>
                       )}
 
-                      {/* Conteo de fotos */}
-                      <span style={{ fontSize: "0.74rem", opacity: 0.7 }}>
-                        {cto.images.length === 0 ? "⚠️ Sin fotos" : `${cto.images.length} fotos`}
+                      {/* Conteo y completitud de fotos */}
+                      <span style={{
+                        fontSize: "0.74rem",
+                        fontWeight: 800,
+                        padding: "2px 8px",
+                        borderRadius: "6px",
+                        background: completeness.isComplete ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                        color: completeness.isComplete ? "#10b981" : "#ef4444"
+                      }}>
+                        {completeness.isComplete
+                          ? `✓ Fotos completas (${cto.images.length}/6)`
+                          : `⚠️ Incompleta (${cto.images.length}/6 fotos)`}
                       </span>
 
-                      {/* Badge de Estado Actual */}
+                      {/* Badge de Estado de Auditoría */}
                       <span style={{
                         fontSize: "0.75rem",
                         fontWeight: 800,
                         padding: "3px 10px",
                         borderRadius: "12px",
-                        background: cto.status === "CORRECTO"
+                        background: isAutoAuditedThisSession
+                          ? "rgba(16, 185, 129, 0.25)"
+                          : isAuditedByAdmin
                           ? "rgba(16, 185, 129, 0.2)"
                           : cto.status === "REPARAR"
                           ? "rgba(139, 92, 246, 0.2)"
                           : cto.status === "FALLO"
                           ? "rgba(239, 68, 68, 0.2)"
                           : "rgba(245, 158, 11, 0.2)",
-                        color: cto.status === "CORRECTO"
+                        color: isAutoAuditedThisSession || isAuditedByAdmin
                           ? "#10b981"
                           : cto.status === "REPARAR"
                           ? "#8b5cf6"
@@ -1150,13 +1319,15 @@ export default function PhotoAuditPage() {
                           ? "#ef4444"
                           : "#f59e0b"
                       }}>
-                        {cto.status === "CORRECTO"
-                          ? "✓ BIEN (CORRECTO)"
+                        {isAutoAuditedThisSession
+                          ? "✨ AUTO-AUDITADA (CORRECTO)"
+                          : isAuditedByAdmin
+                          ? `✓ AUDITADA (${cto.auditedBy?.name || "Admin"})`
                           : cto.status === "REPARAR"
-                          ? "A REPARAR"
+                          ? "📬 A REPARAR"
                           : cto.status === "FALLO"
                           ? "✕ CON FALLO"
-                          : "⏳ PENDIENTE"}
+                          : "⏳ PENDIENTE DE AUDITAR"}
                       </span>
                     </div>
 
@@ -1249,6 +1420,51 @@ export default function PhotoAuditPage() {
                     </div>
 
                   </div>
+
+                  {/* ALERTA: CERRADA SIN COMPLETAR TODAS LAS FOTOS */}
+                  {cto.images.length > 0 && !completeness.isComplete && (
+                    <div style={{
+                      background: "rgba(239, 68, 68, 0.12)",
+                      border: "1.5px solid #ef4444",
+                      borderRadius: "10px",
+                      padding: "10px 14px",
+                      marginBottom: "14px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: "10px"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <span style={{ fontSize: "1.4rem" }}>⚠️</span>
+                        <div>
+                          <strong style={{ color: "#ef4444", fontSize: "0.85rem", display: "block" }}>
+                            Caja cerrada sin completar todas las fotos ({completeness.uploadedCount}/6 requeridas)
+                          </strong>
+                          <span style={{ fontSize: "0.76rem", color: "#fca5a5" }}>
+                            Faltan evidencias de: <strong>{completeness.missingLabels.join(", ")}</strong>
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openRejectModal(cto, "", `Cerrada sin completar fotos obligatorias: faltan ${completeness.missingLabels.join(", ")}`)}
+                        style={{
+                          background: "#ef4444",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "8px",
+                          padding: "6px 12px",
+                          fontSize: "0.78rem",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          boxShadow: "0 2px 8px rgba(239, 68, 68, 0.3)"
+                        }}
+                      >
+                        Mandar a Reparar por Falta de Fotos
+                      </button>
+                    </div>
+                  )}
 
                   {/* CASO 1: CTO SIN FOTOS SUBIDAS TODAVÍA */}
                   {cto.images.length === 0 ? (
@@ -2032,15 +2248,23 @@ export default function PhotoAuditPage() {
                 fontSize: "0.78rem"
               }}>
                 <span style={{ color: "#10b981", fontWeight: 800 }}>
-                  📸 {stats.reviewedImagesCount} fotos revisadas
+                  ✅ {stats.auditedCorrectCount} aprobadas
                 </span>
                 <span style={{ opacity: 0.4 }}>|</span>
                 <span style={{ color: "#f59e0b", fontWeight: 800 }}>
-                  ⏳ {stats.pendingImagesCount} pendientes
+                  ⏳ {stats.pendingAuditCount} pendientes
                 </span>
-                {sessionReviewedPhotos > 0 && (
+                {stats.incompletePhotosCount > 0 && (
+                  <>
+                    <span style={{ opacity: 0.4 }}>|</span>
+                    <span style={{ color: "#ef4444", fontWeight: 800 }}>
+                      ⚠️ {stats.incompletePhotosCount} incompletas
+                    </span>
+                  </>
+                )}
+                {sessionReviewedCtos > 0 && (
                   <span style={{ background: "rgba(255, 121, 0, 0.2)", color: "var(--primary-color)", padding: "1px 6px", borderRadius: "4px", fontWeight: 800, fontSize: "0.72rem" }}>
-                    +{sessionReviewedPhotos} en sesión
+                    +{sessionReviewedCtos} cajas (+{sessionReviewedPhotos} fotos)
                   </span>
                 )}
               </div>
@@ -2437,34 +2661,62 @@ export default function PhotoAuditPage() {
                     )}
                   </div>
 
-                  <span style={{
-                    fontSize: "0.75rem",
-                    fontWeight: 800,
-                    padding: "3px 10px",
-                    borderRadius: "12px",
-                    background: currentTactileCto.status === "CORRECTO"
-                      ? "rgba(16, 185, 129, 0.2)"
-                      : currentTactileCto.status === "REPARAR"
-                      ? "rgba(139, 92, 246, 0.2)"
-                      : currentTactileCto.status === "FALLO"
-                      ? "rgba(239, 68, 68, 0.2)"
-                      : "rgba(245, 158, 11, 0.2)",
-                    color: currentTactileCto.status === "CORRECTO"
-                      ? "#10b981"
-                      : currentTactileCto.status === "REPARAR"
-                      ? "#8b5cf6"
-                      : currentTactileCto.status === "FALLO"
-                      ? "#ef4444"
-                      : "#f59e0b"
-                  }}>
-                    {currentTactileCto.status === "CORRECTO"
-                      ? "✓ CORRECTO"
-                      : currentTactileCto.status === "REPARAR"
-                      ? "A REPARAR"
-                      : currentTactileCto.status === "FALLO"
-                      ? "✕ FALLO"
-                      : "⏳ PENDIENTE"}
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    {(() => {
+                      const tCompleteness = getCtoCompleteness(currentTactileCto.images);
+                      if (!tCompleteness.isComplete) {
+                        return (
+                          <span style={{
+                            fontSize: "0.72rem",
+                            fontWeight: 800,
+                            padding: "3px 8px",
+                            borderRadius: "10px",
+                            background: "rgba(239, 68, 68, 0.25)",
+                            color: "#ef4444",
+                            border: "1px solid #ef4444"
+                          }}>
+                            ⚠️ Incompleta ({currentTactileCto.images.length}/6)
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    <span style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 800,
+                      padding: "3px 10px",
+                      borderRadius: "12px",
+                      background: currentTactileCto.auditedBy
+                        ? "rgba(16, 185, 129, 0.2)"
+                        : currentTactileCto.status === "CORRECTO"
+                        ? "rgba(16, 185, 129, 0.2)"
+                        : currentTactileCto.status === "REPARAR"
+                        ? "rgba(139, 92, 246, 0.2)"
+                        : currentTactileCto.status === "FALLO"
+                        ? "rgba(239, 68, 68, 0.2)"
+                        : "rgba(245, 158, 11, 0.2)",
+                      color: currentTactileCto.auditedBy
+                        ? "#10b981"
+                        : currentTactileCto.status === "CORRECTO"
+                        ? "#10b981"
+                        : currentTactileCto.status === "REPARAR"
+                        ? "#8b5cf6"
+                        : currentTactileCto.status === "FALLO"
+                        ? "#ef4444"
+                        : "#f59e0b"
+                    }}>
+                      {currentTactileCto.auditedBy
+                        ? `✓ AUDITADA (${currentTactileCto.auditedBy.name})`
+                        : currentTactileCto.status === "CORRECTO"
+                        ? "✓ CORRECTO"
+                        : currentTactileCto.status === "REPARAR"
+                        ? "A REPARAR"
+                        : currentTactileCto.status === "FALLO"
+                        ? "✕ FALLO"
+                        : "⏳ PENDIENTE DE AUDITAR"}
+                    </span>
+                  </div>
                 </div>
               </div>
             ) : null}
