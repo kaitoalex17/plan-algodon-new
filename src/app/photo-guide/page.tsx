@@ -419,10 +419,7 @@ function PhotoGuideContent() {
     const cleanCtoNum = (cto.num || "CTO").replace(/[^a-zA-Z0-9_-]/g, "_");
 
     // 3. Contar cuántas fotos ya existen de esta categoría en la CTO
-    const existingCount = images.filter(img => {
-      const urlLower = (img.url || "").toLowerCase();
-      return urlLower.includes(categoryKey.toLowerCase());
-    }).length;
+    const existingCount = getImagesForCategory(categoryKey).length;
 
     // 4. Si hay más de 1, añadir índice ej: entorno_2_331-29-023741-1_310826.jpg
     const suffixIndex = existingCount > 0 ? `_${existingCount + 1}` : "";
@@ -617,25 +614,36 @@ function PhotoGuideContent() {
     }
   };
 
-  // Filtrar imágenes por cada categoría
+  // Filtrar imágenes por cada categoría de forma robusta
   const getImagesForCategory = (catKey: string) => {
     return images.filter(img => {
       const urlLower = (img.url || "").toLowerCase();
-      if (catKey === "entorno") return urlLower.includes("_entorno");
-      if (catKey === "cto_abierta") return urlLower.includes("_cto_abierta") || urlLower.includes("_abierta");
-      if (catKey === "etiquetado_cto") return urlLower.includes("_etiquetado_cto");
-      if (catKey === "etiquetado_cableado") return urlLower.includes("_etiquetado_cableado") || urlLower.includes("_cableado");
-      if (catKey === "potencia") return urlLower.includes("_potencia");
-      if (catKey === "mapa_coordenadas") return urlLower.includes("_mapa_coordenadas");
+      if (catKey === "entorno") {
+        return urlLower.includes("entorno");
+      }
+      if (catKey === "cto_abierta") {
+        return urlLower.includes("cto_abierta") || urlLower.includes("abierta");
+      }
+      if (catKey === "etiquetado_cto") {
+        return urlLower.includes("etiquetado_cto") || (urlLower.includes("etiquetado") && !urlLower.includes("cableado"));
+      }
+      if (catKey === "etiquetado_cableado") {
+        return urlLower.includes("etiquetado_cableado") || urlLower.includes("cableado");
+      }
+      if (catKey === "potencia") {
+        return urlLower.includes("potencia");
+      }
+      if (catKey === "mapa_coordenadas") {
+        return urlLower.includes("mapa_coordenadas") || urlLower.includes("coordenadas");
+      }
       if (catKey === "otras") {
-        return !urlLower.includes("_entorno") &&
-               !urlLower.includes("_cto_abierta") &&
-               !urlLower.includes("_abierta") &&
-               !urlLower.includes("_etiquetado_cto") &&
-               !urlLower.includes("_etiquetado_cableado") &&
-               !urlLower.includes("_cableado") &&
-               !urlLower.includes("_potencia") &&
-               !urlLower.includes("_mapa_coordenadas");
+        const isAntala = urlLower.includes("entorno") ||
+                         urlLower.includes("abierta") ||
+                         urlLower.includes("etiquetado") ||
+                         urlLower.includes("cableado") ||
+                         urlLower.includes("potencia") ||
+                         urlLower.includes("coordenadas");
+        return !isAntala;
       }
       return false;
     });
@@ -673,14 +681,12 @@ function PhotoGuideContent() {
             onClick={async () => {
               const antalaImgs = images.filter(img => {
                 const urlLower = (img.url || "").toLowerCase();
-                return urlLower.includes("_entorno") ||
-                       urlLower.includes("_cto_abierta") ||
-                       urlLower.includes("_abierta") ||
-                       urlLower.includes("_etiquetado_cto") ||
-                       urlLower.includes("_etiquetado_cableado") ||
-                       urlLower.includes("_cableado") ||
-                       urlLower.includes("_potencia") ||
-                       urlLower.includes("_mapa_coordenadas");
+                return urlLower.includes("entorno") ||
+                       urlLower.includes("abierta") ||
+                       urlLower.includes("etiquetado") ||
+                       urlLower.includes("cableado") ||
+                       urlLower.includes("potencia") ||
+                       urlLower.includes("coordenadas");
               });
 
               if (antalaImgs.length === 0) {
@@ -704,11 +710,11 @@ function PhotoGuideContent() {
                 
                 let catKey = "antala";
                 if (urlLower.includes("entorno")) catKey = "entorno";
-                else if (urlLower.includes("cto_abierta") || urlLower.includes("abierta")) catKey = "cto_abierta";
-                else if (urlLower.includes("etiquetado_cto")) catKey = "etiquetado_cto";
-                else if (urlLower.includes("etiquetado_cableado") || urlLower.includes("cableado")) catKey = "etiquetado_cableado";
+                else if (urlLower.includes("abierta")) catKey = "cto_abierta";
+                else if (urlLower.includes("cableado")) catKey = "etiquetado_cableado";
+                else if (urlLower.includes("etiquetado")) catKey = "etiquetado_cto";
                 else if (urlLower.includes("potencia")) catKey = "potencia";
-                else if (urlLower.includes("mapa_coordenadas")) catKey = "mapa_coordenadas";
+                else if (urlLower.includes("coordenadas")) catKey = "mapa_coordenadas";
 
                 categoryCounter[catKey] = (categoryCounter[catKey] || 0) + 1;
                 const idx = categoryCounter[catKey];
@@ -763,14 +769,12 @@ function PhotoGuideContent() {
             onClick={async () => {
               const otrasImgs = images.filter(img => {
                 const urlLower = (img.url || "").toLowerCase();
-                const isAntala = urlLower.includes("_entorno") ||
-                                 urlLower.includes("_cto_abierta") ||
-                                 urlLower.includes("_abierta") ||
-                                 urlLower.includes("_etiquetado_cto") ||
-                                 urlLower.includes("_etiquetado_cableado") ||
-                                 urlLower.includes("_cableado") ||
-                                 urlLower.includes("_potencia") ||
-                                 urlLower.includes("_mapa_coordenadas");
+                const isAntala = urlLower.includes("entorno") ||
+                                 urlLower.includes("abierta") ||
+                                 urlLower.includes("etiquetado") ||
+                                 urlLower.includes("cableado") ||
+                                 urlLower.includes("potencia") ||
+                                 urlLower.includes("coordenadas");
                 return !isAntala;
               });
 

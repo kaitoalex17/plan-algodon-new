@@ -870,11 +870,14 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
     // Validar fotos mínimas
     const imgs = details?.images || [];
-    const hasEntorno = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_entorno"));
-    const hasAbierta = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_cto_abierta") || (i.url || "").toLowerCase().includes("_abierta"));
-    const hasEtqCto = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_etiquetado_cto"));
-    const hasEtqCab = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_etiquetado_cableado") || (i.url || "").toLowerCase().includes("_cableado"));
-    const hasPot = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_potencia"));
+    const hasEntorno = imgs.some((i: any) => (i.url || "").toLowerCase().includes("entorno"));
+    const hasAbierta = imgs.some((i: any) => (i.url || "").toLowerCase().includes("abierta"));
+    const hasEtqCto = imgs.some((i: any) => {
+      const u = (i.url || "").toLowerCase();
+      return u.includes("etiquetado_cto") || (u.includes("etiquetado") && !u.includes("cableado"));
+    });
+    const hasEtqCab = imgs.some((i: any) => (i.url || "").toLowerCase().includes("cableado"));
+    const hasPot = imgs.some((i: any) => (i.url || "").toLowerCase().includes("potencia"));
     
     const missingPhotos: string[] = [];
     if (!hasEntorno) missingPhotos.push("Foto entorno");
@@ -2609,11 +2612,14 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               {/* Verificación de Fotos Mínimas */}
               {(() => {
                 const imgs = details?.images || [];
-                const hasEntorno = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_entorno"));
-                const hasAbierta = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_cto_abierta") || (i.url || "").toLowerCase().includes("_abierta"));
-                const hasEtqCto = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_etiquetado_cto"));
-                const hasEtqCab = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_etiquetado_cableado") || (i.url || "").toLowerCase().includes("_cableado"));
-                const hasPot = imgs.some((i: any) => (i.url || "").toLowerCase().includes("_potencia"));
+                const hasEntorno = imgs.some((i: any) => (i.url || "").toLowerCase().includes("entorno"));
+                const hasAbierta = imgs.some((i: any) => (i.url || "").toLowerCase().includes("abierta"));
+                const hasEtqCto = imgs.some((i: any) => {
+                  const u = (i.url || "").toLowerCase();
+                  return u.includes("etiquetado_cto") || (u.includes("etiquetado") && !u.includes("cableado"));
+                });
+                const hasEtqCab = imgs.some((i: any) => (i.url || "").toLowerCase().includes("cableado"));
+                const hasPot = imgs.some((i: any) => (i.url || "").toLowerCase().includes("potencia"));
                 const missingList = [];
                 if (!hasEntorno) missingList.push("Foto entorno");
                 if (!hasAbierta) missingList.push("CTO abierta");

@@ -40,26 +40,22 @@ export async function GET(req: NextRequest) {
     if (downloadType === "antala") {
       targetImages = cto.images.filter(img => {
         const urlLower = (img.url || "").toLowerCase();
-        return urlLower.includes("_entorno") ||
-               urlLower.includes("_cto_abierta") ||
-               urlLower.includes("_abierta") ||
-               urlLower.includes("_etiquetado_cto") ||
-               urlLower.includes("_etiquetado_cableado") ||
-               urlLower.includes("_cableado") ||
-               urlLower.includes("_potencia") ||
-               urlLower.includes("_mapa_coordenadas");
+        return urlLower.includes("entorno") ||
+               urlLower.includes("abierta") ||
+               urlLower.includes("etiquetado") ||
+               urlLower.includes("cableado") ||
+               urlLower.includes("potencia") ||
+               urlLower.includes("coordenadas");
       });
     } else if (downloadType === "otros") {
       targetImages = cto.images.filter(img => {
         const urlLower = (img.url || "").toLowerCase();
-        const isAntala = urlLower.includes("_entorno") ||
-                         urlLower.includes("_cto_abierta") ||
-                         urlLower.includes("_abierta") ||
-                         urlLower.includes("_etiquetado_cto") ||
-                         urlLower.includes("_etiquetado_cableado") ||
-                         urlLower.includes("_cableado") ||
-                         urlLower.includes("_potencia") ||
-                         urlLower.includes("_mapa_coordenadas");
+        const isAntala = urlLower.includes("entorno") ||
+                         urlLower.includes("abierta") ||
+                         urlLower.includes("etiquetado") ||
+                         urlLower.includes("cableado") ||
+                         urlLower.includes("potencia") ||
+                         urlLower.includes("coordenadas");
         return !isAntala;
       });
     }
@@ -122,12 +118,12 @@ export async function GET(req: NextRequest) {
         const urlLower = filename.toLowerCase();
         let catKey = "foto";
         if (urlLower.includes("entorno")) catKey = "entorno";
-        else if (urlLower.includes("cto_abierta") || urlLower.includes("abierta")) catKey = "cto_abierta";
-        else if (urlLower.includes("etiquetado_cto")) catKey = "etiquetado_cto";
-        else if (urlLower.includes("etiquetado_cableado") || urlLower.includes("cableado")) catKey = "etiquetado_cableado";
+        else if (urlLower.includes("abierta")) catKey = "cto_abierta";
+        else if (urlLower.includes("cableado")) catKey = "etiquetado_cableado";
+        else if (urlLower.includes("etiquetado")) catKey = "etiquetado_cto";
         else if (urlLower.includes("potencia")) catKey = "potencia";
-        else if (urlLower.includes("mapa_coordenadas")) catKey = "mapa_coordenadas";
-        else if (urlLower.includes("otras") || downloadType === "otros") catKey = "otras";
+        else if (urlLower.includes("coordenadas")) catKey = "mapa_coordenadas";
+        else catKey = "otras";
 
         categoryCounter[catKey] = (categoryCounter[catKey] || 0) + 1;
         const idx = categoryCounter[catKey];
