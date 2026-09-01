@@ -755,6 +755,21 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     }
   };
 
+  // Reintento automático de fotos pendientes al recuperar conexión a internet
+  useEffect(() => {
+    const handleOnline = async () => {
+      if (pendingUploads && pendingUploads.length > 0) {
+        for (const item of pendingUploads) {
+          try {
+            await uploadInChunks(item.fileId, item.fileName, item.blob);
+          } catch (e) {}
+        }
+      }
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [pendingUploads]);
+
   useEffect(() => {
     if (cto) {
       fetchCtoDetails();

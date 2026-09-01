@@ -182,6 +182,12 @@ function PhotoGuideContent() {
   const [uploadConfig, setUploadConfig] = useState({ imageQuality: 80, imageMaxWidth: 1600 });
   const [activeUploadingKey, setActiveUploadingKey] = useState<string | null>(null);
 
+  // Estados de conexión y sincronización offline
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const [isSyncingQueue, setIsSyncingQueue] = useState<boolean>(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const isSyncingRef = useRef<boolean>(false);
+
   // Modal para mapa interactivo de satélite y coordenadas
   const [showMapPinModal, setShowMapPinModal] = useState(false);
   const [pinCoords, setPinCoords] = useState<{ lat: number; lng: number }>({ lat: 36.425, lng: -5.144 });
@@ -192,6 +198,35 @@ function PhotoGuideContent() {
   const [viewerImgUrl, setViewerImgUrl] = useState<string | null>(null);
 
   const [currentTheme, setCurrentTheme] = useState<string>("orange");
+
+  // Escuchadores para reconexión y sincronización automática
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setSyncMessage("🟢 Conexión restablecida. Sincronizando fotos pendientes...");
+      autoSyncPendingQueue();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setSyncMessage(null);
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    // Si ya estamos online al montar y hay pendientes, sincronizar tras breve pausa
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      setTimeout(() => {
+        autoSyncPendingQueue();
+      }, 1200);
+    }
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [ctoId]);
 
   // Cargar configuración de compresión y tema de usuario
   useEffect(() => {
@@ -243,6 +278,21 @@ function PhotoGuideContent() {
 
   const loadCtoData = useCallback(async () => {
     if (!ctoId) return;
+
+    // 1. Cargar desde caché local de inmediato (funciona 100% offline)
+    try {
+      const cached = localStorage.getItem(`cto_cache_${ctoId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        setCto(parsed);
+        setImages(parsed.images || []);
+        if (parsed.lat && parsed.lng) {
+          setPinCoords({ lat: parsed.lat, lng: parsed.lng });
+        }
+      }
+    } catch (e) {}
+
+    // 2. Refrescar desde servidor si hay conexión
     try {
       const res = await fetch(`/api/ctos/${ctoId}`);
       if (res.ok) {
@@ -252,9 +302,12 @@ function PhotoGuideContent() {
         if (data.lat && data.lng) {
           setPinCoords({ lat: data.lat, lng: data.lng });
         }
+        try {
+          localStorage.setItem(`cto_cache_${ctoId}`, JSON.stringify(data));
+        } catch (e) {}
       }
     } catch (e) {
-      console.error("Error al cargar CTO:", e);
+      console.warn("Sin conexión con el servidor. Modo offline activo para CTO:", ctoId);
     }
   }, [ctoId]);
 
@@ -274,6 +327,18 @@ function PhotoGuideContent() {
       loadPending();
     }
   }, [ctoId, loadCtoData, loadPending]);
+
+  // Garantizar que cto nunca sea null si se abrió con ctoId y num en URL
+  useEffect(() => {
+    if (!cto && ctoId) {
+      const numFromUrl = searchParams.get("num") || "CTO";
+      setCto({
+        id: ctoId,
+        num: numFromUrl,
+        images: []
+      } as any);
+    }
+  }, [cto, ctoId, searchParams]);
 
   // Borrar imagen subida
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
@@ -349,8 +414,23 @@ function PhotoGuideContent() {
     });
   };
 
-  // Subida en fragmentos con cola persistente
-  const processUploadQueue = async (fileId: string, fileName: string, blob: Blob, categoryKey: string) => {
+  // Subida en fragmentos con cola persistente y tolerancia offline
+  const processUploadQueue = async (fileId: string, fileName: string, blob: Blob, categoryKey: string): Promise<boolean> => {
+    // Si sabemos que estamos offline, guardar en la cola y terminar silenciosamente
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await savePendingUpload({
+        fileId,
+        ctoId: ctoId!,
+        fileName,
+        blob,
+        status: "offline_queued",
+        timestamp: Date.now(),
+        category: categoryKey
+      });
+      await loadPending();
+      return false;
+    }
+
     const CHUNK_SIZE = 100 * 1024; // 100 KB
     const totalChunks = Math.ceil(blob.size / CHUNK_SIZE);
 
@@ -372,17 +452,19 @@ function PhotoGuideContent() {
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open("POST", "/api/upload/chunk");
+          xhr.timeout = 15000;
           xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) resolve();
             else reject(new Error(`Server error: ${xhr.status}`));
           };
+          xhr.ontimeout = () => reject(new Error("Timeout de conexión"));
           xhr.onerror = () => reject(new Error("Error de red"));
           xhr.send(formData);
         });
       }
       success = true;
     } catch (err) {
-      console.warn("Subida diferida/offline para", fileName, err);
+      console.warn("Subida diferida/offline guardada para", fileName, err);
       await savePendingUpload({
         fileId,
         ctoId: ctoId!,
@@ -393,6 +475,7 @@ function PhotoGuideContent() {
         category: categoryKey
       });
       await loadPending();
+      return false;
     }
 
     if (success) {
@@ -401,35 +484,83 @@ function PhotoGuideContent() {
         await loadPending();
         await loadCtoData();
       } catch (e) {}
+      return true;
+    }
+    return false;
+  };
+
+  // Función de sincronización automática de todas las fotos pendientes
+  const autoSyncPendingQueue = async () => {
+    if (isSyncingRef.current || !ctoId) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+    isSyncingRef.current = true;
+    setIsSyncingQueue(true);
+
+    try {
+      const queue = await getPendingUploadsForCto(ctoId);
+      if (queue.length === 0) {
+        setIsSyncingQueue(false);
+        isSyncingRef.current = false;
+        return;
+      }
+
+      setSyncMessage(`Sincronizando ${queue.length} fotos con el servidor...`);
+
+      for (let i = 0; i < queue.length; i++) {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          setSyncMessage("Pausa por falta de cobertura. Se reanudará al volver la señal.");
+          break;
+        }
+
+        const item = queue[i];
+        setSyncMessage(`Subiendo foto ${i + 1} de ${queue.length}: ${item.category || "evidencia"}...`);
+        const ok = await processUploadQueue(item.fileId, item.fileName, item.blob, item.category || "otras");
+        if (!ok) {
+          break;
+        }
+      }
+
+      const remaining = await getPendingUploadsForCto(ctoId);
+      if (remaining.length === 0) {
+        setSyncMessage("✅ ¡Todas las fotos se han sincronizado con éxito!");
+        setTimeout(() => setSyncMessage(null), 4000);
+      } else {
+        setSyncMessage(`Quedan ${remaining.length} fotos pendientes de sincronizar`);
+      }
+    } catch (e) {
+      console.error("Error en sincronización automática:", e);
+    } finally {
+      isSyncingRef.current = false;
+      setIsSyncingQueue(false);
+      await loadPending();
+      await loadCtoData();
     }
   };
 
   // Helper para generar el nombre de archivo con el patrón: tipodefoto[_indice]_[cto]_[DDMMYY].jpg
   const getFormattedPhotoName = (categoryKey: string) => {
-    if (!cto) return `foto_${Date.now()}.jpg`;
-
-    // 1. Obtener día en formato DDMMYY (ej: 310826 para 31-08-2026)
     const now = new Date();
     const dayStr = String(now.getDate()).padStart(2, "0");
     const monthStr = String(now.getMonth() + 1).padStart(2, "0");
     const yearStr = String(now.getFullYear()).slice(-2);
     const datePattern = `${dayStr}${monthStr}${yearStr}`;
 
-    // 2. Limpiar código de CTO (mantener guiones y caracteres válidos)
-    const cleanCtoNum = (cto.num || "CTO").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const rawCtoNum = cto?.num || searchParams.get("num") || "CTO";
+    const cleanCtoNum = rawCtoNum.replace(/[^a-zA-Z0-9_-]/g, "_");
 
-    // 3. Contar cuántas fotos ya existen de esta categoría en la CTO
-    const existingCount = getImagesForCategory(categoryKey).length;
+    // Conteo considerando fotos ya en el servidor + fotos tomadas offline en este dispositivo
+    const existingServerCount = getImagesForCategory(categoryKey).length;
+    const existingPendingCount = pendingUploads.filter(p => p.category === categoryKey).length;
+    const existingCount = existingServerCount + existingPendingCount;
 
-    // 4. Si hay más de 1, añadir índice ej: entorno_2_331-29-023741-1_310826.jpg
     const suffixIndex = existingCount > 0 ? `_${existingCount + 1}` : "";
-
     return `${categoryKey}${suffixIndex}_${cleanCtoNum}_${datePattern}.jpg`;
   };
 
-  // Subida de imagen para una categoría específica
+  // Subida de imagen para una categoría específica (con soporte offline total)
   const handleCategoryUpload = async (categoryKey: string, file: File) => {
-    if (!cto) return;
+    if (!cto && !ctoId) return;
     setActiveUploadingKey(categoryKey);
 
     const formattedName = getFormattedPhotoName(categoryKey);
@@ -439,19 +570,25 @@ function PhotoGuideContent() {
       const quality = (uploadConfig.imageQuality || 80) / 100;
       const compressed = await compressImageClient(file, uploadConfig.imageMaxWidth || 1600, quality);
 
-      // Guardar de inmediato en IndexedDB para asegurar persistencia
+      // Guardar de inmediato en IndexedDB para asegurar persistencia offline
       await savePendingUpload({
         fileId,
-        ctoId: cto.id,
+        ctoId: ctoId!,
         fileName: formattedName,
         blob: compressed,
-        status: "uploading",
+        status: (typeof navigator !== "undefined" && !navigator.onLine) ? "offline_queued" : "uploading",
         timestamp: Date.now(),
         category: categoryKey
       });
       await loadPending();
 
-      // Procesar subida silenciosa
+      // Si no hay conexión a internet, no intentar red y continuar con la app activa
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setActiveUploadingKey(null);
+        return;
+      }
+
+      // Procesar subida
       await processUploadQueue(fileId, formattedName, compressed, categoryKey);
     } catch (err) {
       console.error("Error al procesar subida:", err);
@@ -468,7 +605,7 @@ function PhotoGuideContent() {
   };
 
   const handleDiscardPending = async (fileId: string) => {
-    if (confirm("¿Descartar esta imagen en cola?")) {
+    if (confirm("¿Descartar esta foto guardada localmente?")) {
       await deletePendingUpload(fileId);
       await loadPending();
     }
@@ -835,71 +972,146 @@ function PhotoGuideContent() {
             <span>Descargar Otras fotos</span>
           </button>
 
-          {/* Indicador de subidas en cola */}
-          {pendingUploads.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(245, 158, 11, 0.15)", border: "1px solid #f59e0b", padding: "4px 10px", borderRadius: "20px" }}>
-              <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#f59e0b" }} />
-              <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#f59e0b" }}>
-                {pendingUploads.length} en cola
-              </span>
-            </div>
-          )}
+          {/* Indicador de estado de conexión y subidas en cola */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            {!isOnline && (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(239, 68, 68, 0.15)", border: "1px solid #ef4444", padding: "4px 10px", borderRadius: "20px" }}>
+                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ef4444" }} />
+                <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#ef4444" }}>
+                  📡 Sin conexión
+                </span>
+              </div>
+            )}
+
+            {pendingUploads.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(245, 158, 11, 0.15)", border: "1px solid #f59e0b", padding: "4px 10px", borderRadius: "20px" }}>
+                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#f59e0b" }} />
+                <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#f59e0b" }}>
+                  {pendingUploads.length} en cola local
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Contenido Principal */}
       <main style={{ flex: 1, padding: "10px 12px", maxWidth: "800px", width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: "10px" }}>
         
-        {/* Cola de Subida Pendiente (si existe) */}
-        {pendingUploads.length > 0 && (
-          <div style={{ background: "var(--card-bg)", border: "1px dashed #f59e0b", borderRadius: "10px", padding: "8px 12px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-              <span style={{ fontSize: "0.76rem", fontWeight: 800, color: "#f59e0b", display: "flex", alignItems: "center", gap: "4px" }}>
-                <span>⏳</span> Pendientes ({pendingUploads.length})
+        {/* Banner de Modo Sin Conexión (Offline) */}
+        {!isOnline && (
+          <div style={{
+            background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+            color: "#ffffff",
+            padding: "10px 14px",
+            borderRadius: "10px",
+            boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "1.4rem" }}>📡</span>
+              <div>
+                <strong style={{ fontSize: "0.86rem", display: "block" }}>MODO SIN CONEXIÓN ACTIVO</strong>
+                <span style={{ fontSize: "0.75rem", opacity: 0.95 }}>
+                  Puedes tomar todas las fotos que necesites. Se guardan seguras en tu móvil y se subirán solas al recuperar internet.
+                </span>
+              </div>
+            </div>
+            {pendingUploads.length > 0 && (
+              <span style={{ background: "rgba(0,0,0,0.25)", padding: "4px 8px", borderRadius: "8px", fontSize: "0.75rem", fontWeight: 800, whiteSpace: "nowrap" }}>
+                {pendingUploads.length} fotos guardadas
               </span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              {pendingUploads.map((item) => (
-                <div key={item.fileId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-color)", padding: "4px 8px", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ fontSize: "0.7rem", fontFamily: "monospace", color: "var(--text-color)" }}>{item.fileName}</span>
-                    <span style={{ fontSize: "0.64rem", opacity: 0.6 }}>({(item.blob.size / 1024).toFixed(0)} KB)</span>
-                  </div>
-                  <div style={{ display: "flex", gap: "4px" }}>
-                    <button
-                      type="button"
-                      onClick={() => handleRetryPending(item)}
-                      style={{ padding: "2px 6px", fontSize: "0.68rem", background: "var(--primary-color)", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: 700 }}
-                    >
-                      Subir
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDiscardPending(item.fileId)}
-                      style={{ padding: "2px 6px", fontSize: "0.68rem", background: "#ef4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: 700 }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            )}
           </div>
         )}
 
-        {/* Bloques de Categorías de Fotos (Más Compactos) */}
+        {/* Banner de Progreso de Sincronización o Éxito */}
+        {syncMessage && (
+          <div style={{
+            background: syncMessage.includes("✅") ? "#10b981" : "#0284c7",
+            color: "white",
+            padding: "9px 14px",
+            borderRadius: "10px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+            fontSize: "0.82rem",
+            fontWeight: 800
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>{isSyncingQueue ? "🔄" : "✨"}</span>
+              <span>{syncMessage}</span>
+            </div>
+            {isSyncingQueue && (
+              <span style={{ fontSize: "0.72rem", opacity: 0.9, fontWeight: 600 }}>
+                En segundo plano...
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Botón manual para subir fotos pendientes si hay internet */}
+        {isOnline && pendingUploads.length > 0 && !isSyncingQueue && (
+          <div style={{
+            background: "var(--card-bg)",
+            border: "1.5px solid var(--primary-color)",
+            padding: "8px 14px",
+            borderRadius: "10px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+            flexWrap: "wrap"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "1.1rem" }}>⏳</span>
+              <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-color)" }}>
+                Hay {pendingUploads.length} foto(s) guardadas en tu dispositivo listas para sincronizar
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={autoSyncPendingQueue}
+              style={{
+                background: "var(--primary-color)",
+                color: "white",
+                border: "none",
+                padding: "6px 14px",
+                borderRadius: "8px",
+                fontSize: "0.78rem",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}
+            >
+              <span>⚡ Sincronizar ahora</span>
+            </button>
+          </div>
+        )}
+
+        {/* Bloques de Categorías de Fotos */}
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {PHOTO_CATEGORIES.map((cat) => {
             const catImages = getImagesForCategory(cat.key);
+            const catPending = pendingUploads.filter((p) => p.category === cat.key);
             const isUploading = activeUploadingKey === cat.key;
-            const hasPhotos = catImages.length > 0;
+            const hasPhotos = catImages.length > 0 || catPending.length > 0;
+            const totalCount = catImages.length + catPending.length;
 
             return (
               <div 
                 key={cat.key}
                 style={{ 
                   background: "var(--card-bg)", 
-                  border: hasPhotos ? "1.5px solid #10b981" : "1px solid var(--border-color)", 
+                  border: hasPhotos ? (catPending.length > 0 && catImages.length === 0 ? "1.5px dashed #f59e0b" : "1.5px solid #10b981") : "1px solid var(--border-color)", 
                   borderRadius: "10px", 
                   padding: "10px 12px",
                   boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
@@ -915,8 +1127,8 @@ function PhotoGuideContent() {
                       width: "30px", 
                       height: "30px", 
                       borderRadius: "8px", 
-                      background: hasPhotos ? "rgba(16, 185, 129, 0.12)" : "rgba(255, 121, 0, 0.1)", 
-                      color: hasPhotos ? "#10b981" : "var(--primary-color)", 
+                      background: hasPhotos ? (catPending.length > 0 && catImages.length === 0 ? "rgba(245, 158, 11, 0.15)" : "rgba(16, 185, 129, 0.12)") : "rgba(255, 121, 0, 0.1)", 
+                      color: hasPhotos ? (catPending.length > 0 && catImages.length === 0 ? "#f59e0b" : "#10b981") : "var(--primary-color)", 
                       display: "flex", 
                       alignItems: "center", 
                       justifyContent: "center",
@@ -930,8 +1142,15 @@ function PhotoGuideContent() {
                           {cat.title}
                         </h2>
                         {hasPhotos ? (
-                          <span style={{ fontSize: "0.65rem", fontWeight: 800, padding: "1px 6px", borderRadius: "8px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981" }}>
-                            ✓ {catImages.length}
+                          <span style={{
+                            fontSize: "0.65rem",
+                            fontWeight: 800,
+                            padding: "1px 6px",
+                            borderRadius: "8px",
+                            background: catPending.length > 0 ? "rgba(245, 158, 11, 0.2)" : "rgba(16, 185, 129, 0.15)",
+                            color: catPending.length > 0 ? "#b45309" : "#10b981"
+                          }}>
+                            ✓ {totalCount} {catPending.length > 0 ? `(${catPending.length} offline)` : ""}
                           </span>
                         ) : (
                           <span style={{ fontSize: "0.65rem", fontWeight: 700, padding: "1px 6px", borderRadius: "8px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444" }}>
@@ -1095,9 +1314,11 @@ function PhotoGuideContent() {
                   </div>
                 </div>
 
-                {/* Lista de Fotos Subidas en esta categoría (con botón de borrar) */}
-                {catImages.length > 0 && (
+                {/* Lista de Fotos Subidas en esta categoría (Confirmadas + Offline) */}
+                {(catImages.length > 0 || catPending.length > 0) && (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: "8px", borderTop: "1px solid var(--border-color)", paddingTop: "8px" }}>
+                    
+                    {/* 1. Fotos ya confirmadas en el servidor */}
                     {catImages.map((img, idx) => (
                       <div 
                         key={img.id || idx}
@@ -1111,6 +1332,7 @@ function PhotoGuideContent() {
                           cursor: "pointer",
                           background: "var(--bg-color)"
                         }}
+                        title="Foto confirmada en el servidor"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
@@ -1160,6 +1382,77 @@ function PhotoGuideContent() {
                         )}
                       </div>
                     ))}
+
+                    {/* 2. Fotos pendientes en el dispositivo (Offline) */}
+                    {catPending.map((item, pIdx) => {
+                      const localBlobUrl = URL.createObjectURL(item.blob);
+                      return (
+                        <div
+                          key={item.fileId}
+                          onClick={() => setViewerImgUrl(localBlobUrl)}
+                          style={{
+                            position: "relative",
+                            aspectRatio: "1/1",
+                            borderRadius: "6px",
+                            overflow: "hidden",
+                            border: "2px dashed #f59e0b",
+                            cursor: "pointer",
+                            background: "rgba(245, 158, 11, 0.08)"
+                          }}
+                          title="Foto guardada localmente en tu dispositivo (se subirá en cuanto vuelva internet)"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={localBlobUrl}
+                            alt={item.fileName}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+
+                          {/* Badge de Offline */}
+                          <span style={{
+                            position: "absolute",
+                            bottom: "2px",
+                            left: "2px",
+                            fontSize: "0.58rem",
+                            background: "#f59e0b",
+                            color: "#1e293b",
+                            padding: "1px 4px",
+                            borderRadius: "3px",
+                            fontWeight: 800
+                          }}>
+                            ⏳ Offline #{catImages.length + pIdx + 1}
+                          </span>
+
+                          {/* Botón Descartar foto offline */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDiscardPending(item.fileId);
+                            }}
+                            title="Descartar esta foto local"
+                            style={{
+                              position: "absolute",
+                              top: "2px",
+                              right: "2px",
+                              background: "rgba(239, 68, 68, 0.9)",
+                              border: "none",
+                              borderRadius: "4px",
+                              width: "20px",
+                              height: "20px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              color: "white"
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+
                   </div>
                 )}
               </div>
