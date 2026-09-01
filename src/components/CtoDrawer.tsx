@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { sendLiveTechLocation } from "@/lib/techLocationSync";
 
@@ -70,6 +71,7 @@ const getPendingUploadsForCto = async (ctoId: string): Promise<any[]> => {
 
 export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const { data: session } = useSession();
+  const router = useRouter();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
   const isGestor = (session?.user as any)?.role === "GESTOR";
   const canEditAudit = isAdmin || isGestor;
@@ -769,6 +771,12 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     window.addEventListener("online", handleOnline);
     return () => window.removeEventListener("online", handleOnline);
   }, [pendingUploads]);
+
+  useEffect(() => {
+    try {
+      router.prefetch("/photo-guide");
+    } catch (e) {}
+  }, [router]);
 
   useEffect(() => {
     if (cto) {
@@ -1684,7 +1692,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     try {
                       localStorage.setItem(`cto_cache_${cto.id}`, JSON.stringify(cto));
                     } catch (e) {}
-                    window.open(`/photo-guide?ctoId=${cto.id}&num=${encodeURIComponent(cto.num || "")}`, "_blank");
+                    // Navegación SPA interna: Si está sin cobertura, carga al instante desde memoria sin peticiones de red
+                    router.push(`/photo-guide?ctoId=${cto.id}&num=${encodeURIComponent(cto.num || "")}`);
                   }}
                   className="btn" 
                   style={{ 

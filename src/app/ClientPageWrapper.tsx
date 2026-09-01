@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import MapWrapper from "@/components/MapWrapper";
 import CtoDrawer from "@/components/CtoDrawer";
 import { signOut, useSession } from "next-auth/react";
@@ -30,7 +31,14 @@ type TechStat = {
 
 export default function ClientPageWrapper({ initialCtos, initialMapState }: { initialCtos: any[]; initialMapState: any }) {
   const { data: session } = useSession();
+  const router = useRouter();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
+
+  useEffect(() => {
+    try {
+      router.prefetch("/photo-guide");
+    } catch (e) {}
+  }, [router]);
 
   const [selectedCto, setSelectedCto] = useState<any>(null);
   const [ctos, setCtos] = useState(initialCtos);
