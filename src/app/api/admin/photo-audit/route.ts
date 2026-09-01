@@ -53,7 +53,18 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    const [totalCount, ctos, pendingCount, repairCount, correctCount, falloCount, withoutPhotosCount] = await Promise.all([
+    const [
+      totalCount,
+      ctos,
+      pendingCount,
+      repairCount,
+      correctCount,
+      falloCount,
+      withoutPhotosCount,
+      totalImagesCount,
+      pendingImagesCount,
+      reviewedImagesCount
+    ] = await Promise.all([
       prisma.cTO.count({ where: whereClause }),
       prisma.cTO.findMany({
         where: whereClause,
@@ -72,6 +83,9 @@ export async function GET(req: NextRequest) {
       prisma.cTO.count({ where: { status: "CORRECTO" } }),
       prisma.cTO.count({ where: { status: "FALLO" } }),
       prisma.cTO.count({ where: { images: { none: {} } } }),
+      prisma.image.count(),
+      prisma.image.count({ where: { cto: { status: "PENDIENTE" } } }),
+      prisma.image.count({ where: { cto: { status: { in: ["CORRECTO", "REPARAR", "FALLO"] } } } })
     ]);
 
     // Obtener lista de clústeres disponibles para filtros
@@ -103,7 +117,10 @@ export async function GET(req: NextRequest) {
         repairCount,
         correctCount,
         falloCount,
-        withoutPhotosCount
+        withoutPhotosCount,
+        totalImagesCount,
+        pendingImagesCount,
+        reviewedImagesCount
       }
     });
   } catch (error: any) {

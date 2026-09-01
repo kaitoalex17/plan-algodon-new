@@ -79,8 +79,15 @@ export default function PhotoAuditPage() {
     repairCount: 0,
     correctCount: 0,
     falloCount: 0,
-    withoutPhotosCount: 0
+    withoutPhotosCount: 0,
+    totalImagesCount: 0,
+    pendingImagesCount: 0,
+    reviewedImagesCount: 0
   });
+
+  // Recuento de auditoría en vivo en esta sesión
+  const [sessionReviewedCtos, setSessionReviewedCtos] = useState(0);
+  const [sessionReviewedPhotos, setSessionReviewedPhotos] = useState(0);
 
   // Filtro por Categoría de Foto (Ver solo potencia, solo entorno, etc.)
   const [selectedCategory, setSelectedCategory] = useState("ALL");
@@ -135,6 +142,15 @@ export default function PhotoAuditPage() {
             // Actualización optimista en interfaz
             setCtos(prev => prev.map(c => c.id === ctoId ? { ...c, status: "CORRECTO" as const } : c));
             setAutoAuditedCount(prev => prev + 1);
+            setSessionReviewedCtos(prev => prev + 1);
+            setSessionReviewedPhotos(prev => prev + imagesCount);
+            setStats(prev => ({
+              ...prev,
+              pendingCount: Math.max(0, prev.pendingCount - 1),
+              correctCount: prev.correctCount + 1,
+              pendingImagesCount: Math.max(0, prev.pendingImagesCount - imagesCount),
+              reviewedImagesCount: prev.reviewedImagesCount + imagesCount
+            }));
 
             // Enviar aprobación al backend
             fetch("/api/admin/photo-audit", {
@@ -256,10 +272,21 @@ export default function PhotoAuditPage() {
         if (zoomedImage && zoomedImage.cto.id === ctoId) {
           setZoomedImage(prev => prev ? { ...prev, cto: { ...prev.cto, status: newStatus } } : null);
         }
+        const targetCto = ctos.find(c => c.id === ctoId);
+        const photoCount = targetCto?.images.length || 0;
+        const wasPending = targetCto?.status === "PENDIENTE";
+
+        if (wasPending && newStatus !== "PENDIENTE") {
+          setSessionReviewedCtos(prev => prev + 1);
+          setSessionReviewedPhotos(prev => prev + photoCount);
+        }
+
         // Actualizar contadores locales
         setStats(prev => ({
           ...prev,
-          pendingCount: Math.max(0, newStatus !== "PENDIENTE" ? prev.pendingCount - 1 : prev.pendingCount),
+          pendingCount: Math.max(0, wasPending && newStatus !== "PENDIENTE" ? prev.pendingCount - 1 : prev.pendingCount),
+          pendingImagesCount: Math.max(0, wasPending && newStatus !== "PENDIENTE" ? prev.pendingImagesCount - photoCount : prev.pendingImagesCount),
+          reviewedImagesCount: wasPending && newStatus !== "PENDIENTE" ? prev.reviewedImagesCount + photoCount : prev.reviewedImagesCount,
           repairCount: newStatus === "REPARAR" ? prev.repairCount + 1 : prev.repairCount,
           correctCount: newStatus === "CORRECTO" ? prev.correctCount + 1 : prev.correctCount,
           falloCount: newStatus === "FALLO" ? prev.falloCount + 1 : prev.falloCount
@@ -615,32 +642,100 @@ export default function PhotoAuditPage() {
           </div>
         </div>
 
-        {/* Banner de Cajas Pendientes por Auditar Fotos */}
+        {/* PANEL DE RECUENTO EN VIVO DE FOTOS Y CAJAS */}
         <div style={{
-          background: "linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%)",
-          border: "1.5px solid rgba(245, 158, 11, 0.35)",
-          borderRadius: "14px",
-          padding: "14px 18px",
+          background: "linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)",
+          border: "1.5px solid rgba(255, 121, 0, 0.35)",
+          borderRadius: "16px",
+          padding: "16px 20px",
           marginBottom: "16px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "12px"
+          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.3)"
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ fontSize: "1.8rem" }}>⏳</span>
-            <div>
-              <h3 style={{ margin: "0 0 2px 0", fontSize: "1rem", fontWeight: 800, color: "var(--text-color)" }}>
-                {stats.pendingCount === 1 ? "Queda 1 caja con fotos pendientes de auditar" : `Quedan ${stats.pendingCount} cajas con fotos pendientes de auditar`}
-              </h3>
-              <p style={{ margin: 0, fontSize: "0.78rem", opacity: 0.75 }}>
-                {stats.repairCount} en taller a reparar • {stats.correctCount} aprobadas • {stats.falloCount} con fallo • {stats.withoutPhotosCount || 0} sin fotos
-              </p>
+          {/* Fila 1: Métricas Principales de Recuento */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))",
+            gap: "12px",
+            marginBottom: "14px"
+          }}>
+            {/* Fotos Revisadas */}
+            <div style={{ background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.35)", borderRadius: "12px", padding: "12px 14px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#10b981", textTransform: "uppercase" }}>Fotos Revisadas</span>
+                <span style={{ fontSize: "1.2rem" }}>📸</span>
+              </div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#f8fafc", margin: "4px 0 2px" }}>
+                {stats.reviewedImagesCount}
+              </div>
+              <span style={{ fontSize: "0.72rem", opacity: 0.75 }}>
+                {Math.min(100, Math.round(((stats.reviewedImagesCount) / (stats.totalImagesCount || (stats.pendingImagesCount + stats.reviewedImagesCount) || 1)) * 100))}% del total ({stats.totalImagesCount || (stats.pendingImagesCount + stats.reviewedImagesCount)} fotos)
+              </span>
+            </div>
+
+            {/* Fotos Pendientes */}
+            <div style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.35)", borderRadius: "12px", padding: "12px 14px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#f59e0b", textTransform: "uppercase" }}>Fotos Pendientes</span>
+                <span style={{ fontSize: "1.2rem" }}>⏳</span>
+              </div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#f8fafc", margin: "4px 0 2px" }}>
+                {stats.pendingImagesCount}
+              </div>
+              <span style={{ fontSize: "0.72rem", opacity: 0.75 }}>
+                En {stats.pendingCount} cajas pendientes
+              </span>
+            </div>
+
+            {/* Cajas a Reparar / Taller */}
+            <div style={{ background: "rgba(139, 92, 246, 0.1)", border: "1px solid rgba(139, 92, 246, 0.35)", borderRadius: "12px", padding: "12px 14px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#8b5cf6", textTransform: "uppercase" }}>A Reparar</span>
+                <span style={{ fontSize: "1.2rem" }}>📬</span>
+              </div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#f8fafc", margin: "4px 0 2px" }}>
+                {stats.repairCount}
+              </div>
+              <span style={{ fontSize: "0.72rem", opacity: 0.75 }}>
+                Cajas en buzón del técnico
+              </span>
+            </div>
+
+            {/* Auditadas en esta Sesión */}
+            <div style={{ background: "rgba(255, 121, 0, 0.1)", border: "1px solid rgba(255, 121, 0, 0.4)", borderRadius: "12px", padding: "12px 14px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "var(--primary-color)", textTransform: "uppercase" }}>Auditadas en Sesión</span>
+                <span style={{ fontSize: "1.2rem" }}>⚡</span>
+              </div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--primary-color)", margin: "4px 0 2px" }}>
+                +{sessionReviewedPhotos} <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-color)" }}>fotos</span>
+              </div>
+              <span style={{ fontSize: "0.72rem", opacity: 0.8 }}>
+                +{sessionReviewedCtos} cajas procesadas hoy
+              </span>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {/* Fila 2: Barra de Progreso Global de Fotos */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px", fontSize: "0.76rem" }}>
+              <span style={{ fontWeight: 800, opacity: 0.85 }}>Progreso Global de Auditoría de Fotos</span>
+              <span style={{ fontWeight: 900, color: "var(--primary-color)" }}>
+                {Math.min(100, Math.round(((stats.reviewedImagesCount) / (stats.totalImagesCount || (stats.pendingImagesCount + stats.reviewedImagesCount) || 1)) * 100))}% completado
+              </span>
+            </div>
+            <div style={{ width: "100%", height: "8px", background: "rgba(255, 255, 255, 0.08)", borderRadius: "6px", overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${Math.min(100, Math.round(((stats.reviewedImagesCount) / (stats.totalImagesCount || (stats.pendingImagesCount + stats.reviewedImagesCount) || 1)) * 100))}%`,
+                background: "linear-gradient(90deg, #FF7900 0%, #10b981 100%)",
+                borderRadius: "6px",
+                transition: "width 0.3s ease"
+              }} />
+            </div>
+          </div>
+
+          {/* Botones de Acción Rápida del Banner */}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
             {statusFilter !== "PENDIENTE" && stats.pendingCount > 0 && (
               <button
                 type="button"
@@ -652,14 +747,14 @@ export default function PhotoAuditPage() {
                   borderRadius: "8px",
                   padding: "6px 14px",
                   fontWeight: 800,
-                  fontSize: "0.82rem",
+                  fontSize: "0.8rem",
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "6px"
                 }}
               >
-                <span>⏳</span> Auditar Pendientes ({stats.pendingCount})
+                <span>⏳</span> Auditar Pendientes ({stats.pendingImagesCount} fotos)
               </button>
             )}
             {stats.repairCount > 0 && statusFilter !== "REPARAR" && (
@@ -673,7 +768,7 @@ export default function PhotoAuditPage() {
                   borderRadius: "8px",
                   padding: "6px 14px",
                   fontWeight: 800,
-                  fontSize: "0.82rem",
+                  fontSize: "0.8rem",
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
@@ -694,7 +789,7 @@ export default function PhotoAuditPage() {
                   borderRadius: "8px",
                   padding: "6px 14px",
                   fontWeight: 800,
-                  fontSize: "0.82rem",
+                  fontSize: "0.8rem",
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
@@ -1924,26 +2019,51 @@ export default function PhotoAuditPage() {
               </span>
             </div>
 
-            {/* Progreso del Lote */}
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <span style={{ fontSize: "0.8rem", fontWeight: 700, opacity: 0.8 }}>
-                {tactileIndex < tactileCtos.length
-                  ? `Caja ${tactileIndex + 1} de ${tactileCtos.length}`
-                  : `Completado (${tactileCtos.length} revisadas)`}
-              </span>
+            {/* Recuento en Vivo de Fotos y Cajas en Modo Táctil */}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
               <div style={{
-                width: "90px",
-                height: "6px",
-                background: "rgba(255, 255, 255, 0.1)",
-                borderRadius: "4px",
-                overflow: "hidden"
+                display: "flex",
+                gap: "8px",
+                alignItems: "center",
+                background: "rgba(255, 255, 255, 0.05)",
+                padding: "4px 10px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                fontSize: "0.78rem"
               }}>
+                <span style={{ color: "#10b981", fontWeight: 800 }}>
+                  📸 {stats.reviewedImagesCount} fotos revisadas
+                </span>
+                <span style={{ opacity: 0.4 }}>|</span>
+                <span style={{ color: "#f59e0b", fontWeight: 800 }}>
+                  ⏳ {stats.pendingImagesCount} pendientes
+                </span>
+                {sessionReviewedPhotos > 0 && (
+                  <span style={{ background: "rgba(255, 121, 0, 0.2)", color: "var(--primary-color)", padding: "1px 6px", borderRadius: "4px", fontWeight: 800, fontSize: "0.72rem" }}>
+                    +{sessionReviewedPhotos} en sesión
+                  </span>
+                )}
+              </div>
+
+              {/* Progreso del Lote */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "0.78rem", fontWeight: 700, opacity: 0.8 }}>
+                  Caja {Math.min(tactileIndex + 1, tactileCtos.length)} de {tactileCtos.length}
+                </span>
                 <div style={{
-                  height: "100%",
-                  width: `${tactileCtos.length > 0 ? Math.min(100, ((tactileIndex) / tactileCtos.length) * 100) : 0}%`,
-                  background: "linear-gradient(90deg, #FF7900, #10b981)",
-                  transition: "width 0.2s"
-                }} />
+                  width: "80px",
+                  height: "6px",
+                  background: "rgba(255, 255, 255, 0.1)",
+                  borderRadius: "4px",
+                  overflow: "hidden"
+                }}>
+                  <div style={{
+                    height: "100%",
+                    width: `${tactileCtos.length > 0 ? Math.min(100, ((tactileIndex) / tactileCtos.length) * 100) : 0}%`,
+                    background: "linear-gradient(90deg, #FF7900, #10b981)",
+                    transition: "width 0.2s"
+                  }} />
+                </div>
               </div>
             </div>
 
