@@ -210,6 +210,7 @@ function MapStateAndTracking({
 }) {
   const map = useMap();
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const firstLocationRef = useRef<boolean>(true);
   // Exponer instancia global de Leaflet para acceso rápido desde controles externos
   useEffect(() => {
     if (typeof window !== "undefined") {
