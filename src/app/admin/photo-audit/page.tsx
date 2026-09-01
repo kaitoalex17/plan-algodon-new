@@ -119,8 +119,8 @@ export default function PhotoAuditPage() {
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [hideWithoutCategory, setHideWithoutCategory] = useState(false);
 
-  // Auto-auditoría por scroll (Al scrollear las que quedan arriba se validan automáticamente)
-  const [autoAuditOnScroll, setAutoAuditOnScroll] = useState(true);
+  // Modo Scroll (Desactivado predeterminado, permite activarlo junto a Modo Táctil)
+  const [autoAuditOnScroll, setAutoAuditOnScroll] = useState(false);
   const [autoAuditedCount, setAutoAuditedCount] = useState(0);
   const processedCtoIds = useRef<Set<string>>(new Set());
   const autoAuditObserver = useRef<IntersectionObserver | null>(null);
@@ -683,28 +683,31 @@ export default function PhotoAuditPage() {
           </div>
 
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            {/* Botón Switch Auto-Auditoría al Scroll */}
+            {/* Botón Activar / Desactivar Modo Scroll */}
             <button
               type="button"
-              onClick={() => setAutoAuditOnScroll(!autoAuditOnScroll)}
+              onClick={() => setAutoAuditOnScroll(prev => !prev)}
               style={{
-                background: autoAuditOnScroll ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.05)",
-                color: autoAuditOnScroll ? "#10b981" : "#94a3b8",
+                background: autoAuditOnScroll
+                  ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+                  : "rgba(255, 255, 255, 0.08)",
+                color: autoAuditOnScroll ? "white" : "var(--text-color)",
                 border: autoAuditOnScroll ? "1.5px solid #10b981" : "1px solid var(--border-color)",
                 borderRadius: "8px",
-                padding: "6px 12px",
+                padding: "6px 14px",
                 fontSize: "0.8rem",
-                fontWeight: 800,
+                fontWeight: 900,
                 cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "6px",
+                boxShadow: autoAuditOnScroll ? "0 2px 10px rgba(16, 185, 129, 0.4)" : "none",
                 transition: "all 0.2s"
               }}
-              title="Al hacer scroll hacia abajo, las cajas que quedan arriba se validan como correctas automáticamente"
+              title="Activar o desactivar Modo Scroll: al scrollear hacia abajo, las cajas completas que quedan arriba se validan automáticamente como correctas"
             >
               <span>⚡</span>
-              <span>Auto-auditar al scroll: {autoAuditOnScroll ? "ACTIVADO" : "DESACTIVADO"}</span>
+              <span>Modo Scroll: {autoAuditOnScroll ? "ACTIVADO" : "DESACTIVADO"}</span>
             </button>
 
             {/* Botón Activar Modo Táctil (Tinder-style) */}
