@@ -1020,8 +1020,8 @@ export default function Map({
               minWidth: "160px", zIndex: 1001
             }}>
               {[
-                { value: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", label: "Modo Oscuro (Esri)" },
-                { value: "dark-contrast", label: "Modo Oscuro (Alto Contraste)" },
+                { value: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", label: "Modo Oscuro" },
+                { value: "dark-contrast", label: "Modo Oscuro Contraste" },
                 { value: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", label: "Google Normal" },
                 { value: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", label: "Google Satélite" },
                 { value: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", label: "Google Híbrido" },
