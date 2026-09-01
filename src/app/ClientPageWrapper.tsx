@@ -581,7 +581,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   }, [filteredCtos]);
 
   return (
-    <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--bg-color)" }}>
+    <div style={{ position: "fixed", inset: 0, width: "100%", height: "100%", height: "100dvh", maxHeight: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--bg-color)", overscrollBehavior: "none" }}>
       
       {/* Cabecera Principal y Barra de Búsqueda (Fija arriba) */}
       <div style={{ background: "var(--card-bg)", borderBottom: "1px solid var(--border-color)", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", zIndex: 10, padding: "12px 16px" }}>
@@ -1022,8 +1022,8 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
 
       </div>
 
-      {/* Contenedor de la Vista Activa */}
-      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+      {/* Contenedor de la Vista Activa (Inmovilizado para iPhone / móvil) */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden", height: "100%", width: "100%", touchAction: activeView === "map" ? "none" : "auto" }}>
         
         {/* VISTA MAPA */}
         <div style={{ display: activeView === "map" ? "block" : "none", width: "100%", height: "100%" }}>
@@ -1267,7 +1267,12 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                   { name: "rose", color: "#e11d48", label: "Rosa" },
                   { name: "teal", color: "#0d9488", label: "Teal" },
                   { name: "amber", color: "#d97706", label: "Ámbar" },
-                  { name: "slate", color: "#475569", label: "Pizarra" }
+                  { name: "slate", color: "#475569", label: "Pizarra" },
+                  { name: "dark-cyan", color: "#06b6d4", label: "Oscuro Cyan", bg: "#080e1a", border: "#164e63" },
+                  { name: "dark-emerald", color: "#10b981", label: "Oscuro Verde", bg: "#05130e", border: "#064e3b" },
+                  { name: "dark-purple", color: "#a855f7", label: "Oscuro Violeta", bg: "#10081d", border: "#581c87" },
+                  { name: "dark-crimson", color: "#f43f5e", label: "Oscuro Rojo", bg: "#15080c", border: "#881337" },
+                  { name: "dark-amber", color: "#fbbf24", label: "Oscuro Oro", bg: "#141006", border: "#78350f" }
                 ].map((t) => {
                   const isSelected = theme === t.name;
                   return (

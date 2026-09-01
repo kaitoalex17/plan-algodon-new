@@ -562,7 +562,7 @@ export default function Map({
   };
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", touchAction: "none" }}>
       <MapContainer 
         center={[initialMapState?.lat || 36.425, initialMapState?.lng || -5.144]} 
         zoom={initialMapState?.zoom || 14} 
@@ -766,6 +766,7 @@ export default function Map({
               minWidth: "160px", zIndex: 1001
             }}>
               {[
+                { value: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", label: "🌙 Modo Oscuro (Carto)" },
                 { value: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", label: "Google Normal" },
                 { value: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", label: "Google Satélite" },
                 { value: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", label: "Google Híbrido" },

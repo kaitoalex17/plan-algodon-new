@@ -78,10 +78,12 @@ a {
 
 /* Map containers */
 .map-container {
-  width: 100vw;
-  height: 100vh;
+  width: 100% !important;
+  height: 100% !important;
   z-index: 0;
   position: relative;
+  touch-action: none;
+  overscroll-behavior: none;
 }
 
 .leaflet-container {
@@ -127,7 +129,10 @@ a {
 html, body {
   width: 100%;
   height: 100%;
-  overflow-x: hidden;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
 }
 
 /* Allow normal scrolling and zooming on admin and dedicated pages */
@@ -148,7 +153,7 @@ body.photo-guide-page {
   touch-action: pan-y !important;
 }
 
-/* Temas predeterminados a nivel de página (10 Temas Premium) */
+/* Temas predeterminados a nivel de página (10 Temas Clásicos) */
 :root.theme-orange, html.theme-orange, body.theme-orange {
   --primary-color: #FF7900;
   --bg-color: #f3f4f6;
@@ -228,6 +233,52 @@ body.photo-guide-page {
   --text-color: #0f172a;
   --card-bg: #ffffff;
   --border-color: #cbd5e1;
+}
+
+/* 5 Nuevos Temas Modo Oscuro con Mezcla de Color */
+:root.theme-dark-cyan, html.theme-dark-cyan, body.theme-dark-cyan {
+  --primary-color: #06b6d4;
+  --bg-color: #080e1a;
+  --text-color: #f0fdfa;
+  --card-bg: #0f1d30;
+  --border-color: #164e63;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+:root.theme-dark-emerald, html.theme-dark-emerald, body.theme-dark-emerald {
+  --primary-color: #10b981;
+  --bg-color: #05130e;
+  --text-color: #f0fdf4;
+  --card-bg: #09231b;
+  --border-color: #064e3b;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+:root.theme-dark-purple, html.theme-dark-purple, body.theme-dark-purple {
+  --primary-color: #a855f7;
+  --bg-color: #10081d;
+  --text-color: #faf5ff;
+  --card-bg: #1d1235;
+  --border-color: #581c87;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+:root.theme-dark-crimson, html.theme-dark-crimson, body.theme-dark-crimson {
+  --primary-color: #f43f5e;
+  --bg-color: #15080c;
+  --text-color: #fff1f2;
+  --card-bg: #260e16;
+  --border-color: #881337;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+:root.theme-dark-amber, html.theme-dark-amber, body.theme-dark-amber {
+  --primary-color: #fbbf24;
+  --bg-color: #141006;
+  --text-color: #fffbeb;
+  --card-bg: #231c0c;
+  --border-color: #78350f;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
 

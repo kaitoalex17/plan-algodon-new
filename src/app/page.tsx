@@ -72,7 +72,7 @@ export default async function Home() {
   }
 
   return (
-    <main>
+    <main style={{ position: "fixed", inset: 0, width: "100%", height: "100%", height: "100dvh", overflow: "hidden", touchAction: "manipulation" }}>
       <ClientPageWrapper initialCtos={ctos} initialMapState={userMapState} />
     </main>
   );

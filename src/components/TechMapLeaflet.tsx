@@ -198,6 +198,22 @@ export default function TechMapLeaflet({
         </button>
         <button
           type="button"
+          onClick={() => setTileLayerUrl("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png")}
+          style={{
+            background: tileLayerUrl.includes("dark_all") ? "var(--primary-color, #FF7900)" : "transparent",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            padding: "4px 8px",
+            fontSize: "0.72rem",
+            fontWeight: 700,
+            cursor: "pointer"
+          }}
+        >
+          🌙 Modo Oscuro
+        </button>
+        <button
+          type="button"
           onClick={() => setTileLayerUrl("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png")}
           style={{
             background: tileLayerUrl.includes("openstreetmap") ? "var(--primary-color, #FF7900)" : "transparent",
