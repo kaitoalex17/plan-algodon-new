@@ -1,36 +1,31 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+import type { TechLocationItem } from "@/components/TechMapLeaflet";
 
-type TechLocation = {
-  userId: string;
-  name: string;
-  email: string;
-  color: string;
-  role: string;
-  lat: number;
-  lng: number;
-  accuracy?: number;
-  updatedAt: number;
-  lastAction?: string;
-};
+// Cargar el mapa de Leaflet sin SSR para evitar problemas de renderizado
+const TechMapLeaflet = dynamic(() => import("@/components/TechMapLeaflet"), {
+  ssr: false,
+  loading: () => (
+    <div style={{ flex: 1, height: "100%", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--card-bg, #1e293b)", gap: "10px" }}>
+      <div style={{ fontSize: "2rem" }}>🗺️</div>
+      <p style={{ color: "#94a3b8", fontWeight: 700, fontSize: "0.95rem" }}>Cargando mapa de técnicos en vivo...</p>
+    </div>
+  )
+});
 
 export default function TechMapPage() {
   const router = useRouter();
   const { data: session, status: authStatus } = useSession();
 
-  const [techs, setTechs] = useState<TechLocation[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [techs, setTechs] = useState<TechLocationItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTech, setSelectedTech] = useState<TechLocation | null>(null);
+  const [selectedTech, setSelectedTech] = useState<TechLocationItem | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
-
-  const mapRef = useRef<any>(null);
-  const markersRef = useRef<{ [key: string]: any }>({});
-  const mapContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (authStatus === "authenticated") {
@@ -39,7 +34,7 @@ export default function TechMapPage() {
         router.push("/");
       } else {
         loadData();
-        const interval = setInterval(loadData, 10000); // 10 segundos
+        const interval = setInterval(loadData, 10000); // Refresco cada 10s
         return () => clearInterval(interval);
       }
     } else if (authStatus === "unauthenticated") {
@@ -49,39 +44,12 @@ export default function TechMapPage() {
 
   const loadData = async () => {
     try {
-      const [resLocs, resUsers] = await Promise.all([
-        fetch("/api/tech-locations"),
-        fetch("/api/users")
-      ]);
-
-      let locList: TechLocation[] = [];
-      let userList: any[] = [];
-
-      if (resLocs.ok) locList = await resLocs.json();
-      if (resUsers.ok) userList = await resUsers.json();
-
-      // Combinar los datos de usuarios con coordenadas fijas si no tienen posición viva
-      const combinedTechs: TechLocation[] = userList
-        .filter(u => u.role !== "ADMIN" || locList.some(l => l.userId === u.id))
-        .map(u => {
-          const live = locList.find(l => l.userId === u.id);
-          if (live) return live;
-          return {
-            userId: u.id,
-            name: u.name || u.email.split("@")[0],
-            email: u.email,
-            color: u.color || "#FF7900",
-            role: u.role,
-            lat: u.lastLat || 28.1248, // Coordenadas canarias / por defecto
-            lng: u.lastLng || -15.4300,
-            updatedAt: u.lastLogin ? new Date(u.lastLogin).getTime() : 0,
-            hasLive: false,
-          } as any;
-        });
-
-      setTechs(combinedTechs);
-      setUsers(userList);
-      setLastRefreshed(new Date());
+      const res = await fetch("/api/tech-locations");
+      if (res.ok) {
+        const data = await res.json();
+        setTechs(data);
+        setLastRefreshed(new Date());
+      }
     } catch (e) {
       console.error("Error al cargar ubicaciones de técnicos:", e);
     } finally {
@@ -89,137 +57,8 @@ export default function TechMapPage() {
     }
   };
 
-  // Inicializar Leaflet dinámicamente en el cliente
-  useEffect(() => {
-    if (typeof window === "undefined" || !mapContainerRef.current) return;
-
-    let mapInstance: any;
-
-    const initMap = async () => {
-      const L = (await import("leaflet")).default;
-      require("leaflet/dist/leaflet.css");
-
-      if (mapRef.current) return;
-
-      mapInstance = L.map(mapContainerRef.current, {
-        center: [28.1248, -15.4300],
-        zoom: 11,
-        zoomControl: true
-      });
-
-      // Capa de mapa clara / Google Hybrid o CartoDB Positron
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        attribution: "© OpenStreetMap contributors, CartoDB",
-        maxZoom: 19
-      }).addTo(mapInstance);
-
-      mapRef.current = mapInstance;
-    };
-
-    initMap();
-
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-    };
-  }, []);
-
-  // Actualizar marcadores en el mapa cuando cambien los datos de técnicos
-  useEffect(() => {
-    if (!mapRef.current || techs.length === 0) return;
-
-    const renderMarkers = async () => {
-      const L = (await import("leaflet")).default;
-
-      // Limpiar marcadores antiguos
-      Object.values(markersRef.current).forEach((m: any) => m.remove());
-      markersRef.current = {};
-
-      const bounds: [number, number][] = [];
-
-      techs.forEach(t => {
-        if (!t.lat || !t.lng) return;
-
-        const isLive = t.updatedAt && (Date.now() - t.updatedAt < 30 * 60 * 1000);
-        const minutesAgo = t.updatedAt ? Math.round((Date.now() - t.updatedAt) / 60000) : 999;
-        
-        // Icono personalizado con color del técnico y pulso si está activo
-        const customIcon = L.divIcon({
-          className: "custom-tech-marker",
-          html: `
-            <div style="
-              position: relative;
-              width: 38px;
-              height: 38px;
-              border-radius: 50%;
-              background: ${t.color || "#FF7900"};
-              border: 3px solid white;
-              box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: white;
-              font-weight: 800;
-              font-size: 14px;
-            ">
-              ${t.name.charAt(0).toUpperCase()}
-              ${isLive ? `<div style="
-                position: absolute;
-                top: -4px;
-                right: -4px;
-                width: 12px;
-                height: 12px;
-                border-radius: 50%;
-                background: #10b981;
-                border: 2px solid white;
-              "></div>` : ''}
-            </div>
-          `,
-          iconSize: [38, 38],
-          iconAnchor: [19, 19],
-          popupAnchor: [0, -20]
-        });
-
-        const marker = L.marker([t.lat, t.lng], { icon: customIcon }).addTo(mapRef.current);
-        
-        marker.bindPopup(`
-          <div style="font-family: system-ui; min-width: 180px; padding: 4px;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-              <span style="width: 12px; height: 12px; border-radius: 50%; background: ${t.color};"></span>
-              <strong style="font-size: 14px;">${t.name}</strong>
-            </div>
-            <p style="margin: 2px 0; font-size: 12px; color: #64748b;">${t.email}</p>
-            <p style="margin: 4px 0 0 0; font-size: 12px; font-weight: 700; color: ${isLive ? '#10b981' : '#64748b'};">
-              ${isLive ? `🟢 En Vivo (hace ${minutesAgo} min)` : `⚪ Última posición registrada`}
-            </p>
-            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">
-              Lat: ${t.lat.toFixed(5)}<br/>Lng: ${t.lng.toFixed(5)}
-            </div>
-          </div>
-        `);
-
-        marker.on("click", () => setSelectedTech(t));
-        markersRef.current[t.userId] = marker;
-        bounds.push([t.lat, t.lng]);
-      });
-
-      if (bounds.length > 0 && !selectedTech) {
-        mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-      }
-    };
-
-    renderMarkers();
-  }, [techs]);
-
-  const centerOnTech = (t: TechLocation) => {
+  const centerOnTech = (t: TechLocationItem) => {
     setSelectedTech(t);
-    if (mapRef.current && t.lat && t.lng) {
-      mapRef.current.setView([t.lat, t.lng], 16, { animate: true });
-      const m = markersRef.current[t.userId];
-      if (m) m.openPopup();
-    }
   };
 
   return (
@@ -274,14 +113,20 @@ export default function TechMapPage() {
       </div>
 
       {/* Contenido Principal: Mapa + Barra lateral */}
-      <div style={{ display: "flex", flex: 1, position: "relative", height: "calc(100vh - 75px)" }}>
+      <div style={{ display: "flex", flex: 1, position: "relative", height: "calc(100vh - 75px)", overflow: "hidden" }}>
         
-        {/* Mapa Leaflet */}
-        <div ref={mapContainerRef} style={{ flex: 1, height: "100%", width: "100%", zIndex: 1 }} />
+        {/* Mapa Leaflet Seguro */}
+        <div style={{ flex: 1, height: "100%", position: "relative" }}>
+          <TechMapLeaflet
+            techs={techs}
+            selectedTech={selectedTech}
+            onSelectTech={centerOnTech}
+          />
+        </div>
 
         {/* Panel Lateral de Técnicos */}
         <div style={{
-          width: "340px",
+          width: "350px",
           background: "var(--card-bg, #1e293b)",
           borderLeft: "1px solid var(--border-color, #334155)",
           display: "flex",
@@ -291,14 +136,21 @@ export default function TechMapPage() {
           boxShadow: "-4px 0 16px rgba(0,0,0,0.15)"
         }}>
           <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-color)", background: "var(--bg-color)" }}>
-            <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800 }}>Técnicos Monitoreados ({techs.length})</h3>
+            <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800 }}>Técnicos Registrados ({techs.length})</h3>
             <span style={{ fontSize: "0.75rem", opacity: 0.7 }}>Haz clic para enfocar la posición en el mapa</span>
           </div>
 
           <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
             {techs.map(t => {
-              const isLive = t.updatedAt && (Date.now() - t.updatedAt < 30 * 60 * 1000);
               const isSelected = selectedTech?.userId === t.userId;
+              const dateStr = t.updatedAt
+                ? new Date(t.updatedAt).toLocaleString("es-ES", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit"
+                  })
+                : "Sin registro";
 
               return (
                 <div
@@ -317,18 +169,19 @@ export default function TechMapPage() {
                   }}
                 >
                   <div style={{
-                    width: "36px",
-                    height: "36px",
+                    width: "38px",
+                    height: "38px",
                     borderRadius: "50%",
                     background: t.color || "#FF7900",
-                    border: "2px solid white",
+                    border: "2.5px solid white",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     color: "white",
-                    fontWeight: 800,
-                    fontSize: "0.85rem",
-                    flexShrink: 0
+                    fontWeight: 900,
+                    fontSize: "0.9rem",
+                    flexShrink: 0,
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.25)"
                   }}>
                     {t.name.charAt(0).toUpperCase()}
                   </div>
@@ -340,25 +193,30 @@ export default function TechMapPage() {
                       </strong>
                       <span style={{
                         fontSize: "0.68rem",
-                        padding: "2px 6px",
+                        padding: "2px 7px",
                         borderRadius: "10px",
                         fontWeight: 800,
-                        background: isLive ? "rgba(16, 185, 129, 0.2)" : "rgba(100, 116, 139, 0.2)",
-                        color: isLive ? "#10b981" : "#94a3b8"
+                        background: t.isLive ? "rgba(16, 185, 129, 0.2)" : "rgba(100, 116, 139, 0.2)",
+                        color: t.isLive ? "#10b981" : "#94a3b8"
                       }}>
-                        {isLive ? "EN VIVO" : "OFFLINE"}
+                        {t.isLive ? "EN VIVO" : "OFFLINE"}
                       </span>
                     </div>
 
                     <div style={{ fontSize: "0.72rem", opacity: 0.75, marginTop: "2px" }}>
-                      {t.lat ? `GPS: ${t.lat.toFixed(4)}, ${t.lng.toFixed(4)}` : "Sin coordenadas registradas"}
+                      {t.hasGps ? `GPS: ${t.lat.toFixed(4)}, ${t.lng.toFixed(4)}` : "Sin coordenadas fijadas"}
                     </div>
 
-                    {t.updatedAt > 0 && (
-                      <div style={{ fontSize: "0.7rem", opacity: 0.6, marginTop: "2px" }}>
-                        🕒 {new Date(t.updatedAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
-                      </div>
-                    )}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "3px" }}>
+                      <span style={{ fontSize: "0.7rem", opacity: 0.8, color: "var(--primary-color)", fontWeight: 700 }}>
+                        🕒 {dateStr}
+                      </span>
+                      {t.lastAction && (
+                        <span style={{ fontSize: "0.65rem", opacity: 0.6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "120px" }} title={t.lastAction}>
+                          📌 {t.lastAction}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

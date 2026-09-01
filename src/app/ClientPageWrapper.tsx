@@ -76,11 +76,11 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   useEffect(() => {
     if (session?.user) {
       // 1. Envío inmediato al entrar en la app
-      sendLiveTechLocation();
+      sendLiveTechLocation("Entrada a la app");
 
       // 2. Intervalo periódico cada 10 minutos (600.000 ms)
       const interval = setInterval(() => {
-        sendLiveTechLocation();
+        sendLiveTechLocation("Intervalo periódico (10 min)");
       }, 10 * 60 * 1000);
 
       return () => clearInterval(interval);

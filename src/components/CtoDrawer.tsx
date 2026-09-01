@@ -388,7 +388,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         };
         onUpdate(fullUpdatedCto);
         fetchCtoDetails();
-        sendLiveTechLocation();
+        sendLiveTechLocation(`Reparación CTO ${cto.num}`);
         alert(`✅ ¡CTO ${cto.num} marcada como REPARADA con éxito!\n\n• Estado: CORRECTO\n• Reparado por: ${techName}\n• Asignación: Sin asignar`);
       } else {
         const errData = await res.json();
@@ -836,7 +836,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         fetchCtoDetails(); // Refrescar detalles de comentarios/historial
         
         // Enviar ubicación en vivo del técnico de inmediato al guardar o modificar una caja
-        sendLiveTechLocation();
+        sendLiveTechLocation(`Guardado CTO ${cto.num}`);
 
         alert("CTO guardada correctamente");
       } else {

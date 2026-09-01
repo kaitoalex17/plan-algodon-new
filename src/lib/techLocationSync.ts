@@ -2,7 +2,7 @@
  * Helper global para sincronizar la ubicación del técnico/usuario con el backend.
  * Captura las coordenadas GPS reales del navegador y las envía a /api/tech-locations.
  */
-export async function sendLiveTechLocation(): Promise<{ lat: number; lng: number } | null> {
+export async function sendLiveTechLocation(action?: string): Promise<{ lat: number; lng: number } | null> {
   if (typeof window === "undefined" || !navigator.geolocation) {
     return null;
   }
@@ -14,6 +14,7 @@ export async function sendLiveTechLocation(): Promise<{ lat: number; lng: number
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
+          action: action || "Ubicación en vivo",
         };
 
         try {
