@@ -91,6 +91,11 @@ a {
   height: 100%;
 }
 
+/* Filtro de teselas para Modo Oscuro Alto Contraste (sin API key) */
+.dark-tile-filter {
+  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(115%) !important;
+}
+
 .leaflet-control-container .leaflet-top {
   top: 75px; 
 }

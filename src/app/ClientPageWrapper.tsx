@@ -1463,7 +1463,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
       {/* MODAL DE AJUSTES (Visualización de CTOs y Temas) */}
       {showSettingsModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-          <div className="glass-panel" style={{ width: "95%", maxWidth: "450px", padding: "1.5rem", background: "var(--card-bg)", color: "var(--text-color)", borderColor: "var(--border-color)", maxHeight: "85vh", overflowY: "auto", position: "relative" }}>
+          <div className="glass-panel" style={{ width: "95%", maxWidth: "min(450px, 94vw)", padding: "1.25rem 1rem", background: "var(--card-bg)", color: "var(--text-color)", borderColor: "var(--border-color)", maxHeight: "85vh", overflowY: "auto", overflowX: "hidden", position: "relative", boxSizing: "border-box" }}>
             
             {/* Botón de cierre en esquina superior derecha */}
             <button 
@@ -1508,57 +1508,121 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               </div>
             </div>
 
-            {/* Selector de Tema */}
+            {/* Selector de Tema Organizado */}
             <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontSize: "0.9rem", fontWeight: 700, color: "var(--text-color)" }}>
                 Tema de Color de la Página:
               </label>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px", marginTop: "8px" }}>
-                {[
-                  { name: "orange", color: "#FF7900", label: "Naranja" },
-                  { name: "blue", color: "#2563eb", label: "Azul" },
-                  { name: "green", color: "#10b981", label: "Verde" },
-                  { name: "purple", color: "#8b5cf6", label: "Morado" },
-                  { name: "dark", color: "#f97316", label: "Oscuro", bg: "#0f172a", border: "#475569" },
-                  { name: "indigo", color: "#4f46e5", label: "Indigo" },
-                  { name: "rose", color: "#e11d48", label: "Rosa" },
-                  { name: "teal", color: "#0d9488", label: "Teal" },
-                  { name: "amber", color: "#d97706", label: "Ámbar" },
-                  { name: "slate", color: "#475569", label: "Pizarra" },
-                  { name: "dark-cyan", color: "#06b6d4", label: "Oscuro Cyan", bg: "#080e1a", border: "#164e63" },
-                  { name: "dark-emerald", color: "#10b981", label: "Oscuro Verde", bg: "#05130e", border: "#064e3b" },
-                  { name: "dark-purple", color: "#a855f7", label: "Oscuro Violeta", bg: "#10081d", border: "#581c87" },
-                  { name: "dark-crimson", color: "#f43f5e", label: "Oscuro Rojo", bg: "#15080c", border: "#881337" },
-                  { name: "dark-amber", color: "#fbbf24", label: "Oscuro Oro", bg: "#141006", border: "#78350f" }
-                ].map((t) => {
-                  const isSelected = theme === t.name;
-                  return (
-                    <button
-                      key={t.name}
-                      type="button"
-                      onClick={() => handleThemeChange(t.name)}
-                      title={t.label}
-                      style={{
-                        padding: "6px 2px",
-                        borderRadius: "8px",
-                        border: isSelected ? "2.5px solid var(--primary-color)" : "1.5px solid var(--border-color)",
-                        background: "var(--bg-color)",
-                        cursor: "pointer",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: "4px",
-                        boxShadow: isSelected ? "0 0 8px rgba(255,121,0,0.3)" : "none",
-                        transition: "all 0.15s"
-                      }}
-                    >
-                      <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: t.color, display: "inline-block", border: "1.5px solid rgba(255,255,255,0.4)", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-                      <span style={{ fontSize: "0.62rem", fontWeight: isSelected ? 800 : 700, color: "var(--text-color)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center" }}>
-                        {t.label}
-                      </span>
-                    </button>
-                  );
-                })}
+
+              {/* Subsección 1: Temas Estándar */}
+              <div style={{ marginBottom: "12px", background: "var(--bg-color)", padding: "10px", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+                <div style={{ fontSize: "0.74rem", fontWeight: 800, color: "var(--primary-color)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="5" />
+                    <line x1="12" y1="1" x2="12" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="23" />
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                    <line x1="1" y1="12" x2="3" y2="12" />
+                    <line x1="21" y1="12" x2="23" y2="12" />
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                  </svg>
+                  <span>Temas Estándar (10)</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(68px, 1fr))", gap: "6px" }}>
+                  {[
+                    { name: "orange", color: "#FF7900", label: "Naranja" },
+                    { name: "blue", color: "#2563eb", label: "Azul" },
+                    { name: "green", color: "#10b981", label: "Verde" },
+                    { name: "purple", color: "#8b5cf6", label: "Morado" },
+                    { name: "indigo", color: "#4f46e5", label: "Indigo" },
+                    { name: "rose", color: "#e11d48", label: "Rosa" },
+                    { name: "teal", color: "#0d9488", label: "Teal" },
+                    { name: "amber", color: "#d97706", label: "Ámbar" },
+                    { name: "slate", color: "#475569", label: "Pizarra" },
+                    { name: "dark", color: "#f97316", label: "Oscuro" }
+                  ].map((t) => {
+                    const isSelected = theme === t.name;
+                    return (
+                      <button
+                        key={t.name}
+                        type="button"
+                        onClick={() => handleThemeChange(t.name)}
+                        title={t.label}
+                        style={{
+                          padding: "6px 2px",
+                          borderRadius: "8px",
+                          border: isSelected ? "2.5px solid var(--primary-color)" : "1.5px solid var(--border-color)",
+                          background: isSelected ? "rgba(255, 121, 0, 0.15)" : "var(--card-bg)",
+                          cursor: "pointer",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: "4px",
+                          minWidth: 0,
+                          boxSizing: "border-box",
+                          boxShadow: isSelected ? "0 0 8px rgba(255,121,0,0.3)" : "none",
+                          transition: "all 0.15s"
+                        }}
+                      >
+                        <span style={{ width: "18px", height: "18px", borderRadius: "50%", background: t.color, display: "inline-block", border: "1.5px solid rgba(255,255,255,0.4)", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                        <span style={{ fontSize: "0.65rem", fontWeight: isSelected ? 800 : 700, color: "var(--text-color)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center" }}>
+                          {t.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Subsección 2: Temas Modo Oscuro Puro */}
+              <div style={{ background: "rgba(15, 23, 42, 0.6)", padding: "10px", borderRadius: "10px", border: "1px solid rgba(56, 189, 248, 0.3)" }}>
+                <div style={{ fontSize: "0.74rem", fontWeight: 800, color: "#38bdf8", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                  </svg>
+                  <span>Temas Modo Oscuro (5)</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(68px, 1fr))", gap: "6px" }}>
+                  {[
+                    { name: "dark-cyan", color: "#06b6d4", label: "Cyan", title: "Oscuro Cyan" },
+                    { name: "dark-emerald", color: "#10b981", label: "Verde", title: "Oscuro Verde" },
+                    { name: "dark-purple", color: "#a855f7", label: "Violeta", title: "Oscuro Violeta" },
+                    { name: "dark-crimson", color: "#f43f5e", label: "Rojo", title: "Oscuro Rojo" },
+                    { name: "dark-amber", color: "#fbbf24", label: "Oro", title: "Oscuro Oro" }
+                  ].map((t) => {
+                    const isSelected = theme === t.name;
+                    return (
+                      <button
+                        key={t.name}
+                        type="button"
+                        onClick={() => handleThemeChange(t.name)}
+                        title={t.title}
+                        style={{
+                          padding: "6px 2px",
+                          borderRadius: "8px",
+                          border: isSelected ? "2.5px solid #38bdf8" : "1.5px solid rgba(56, 189, 248, 0.25)",
+                          background: isSelected ? "rgba(6, 182, 212, 0.2)" : "#0b1220",
+                          cursor: "pointer",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: "4px",
+                          minWidth: 0,
+                          boxSizing: "border-box",
+                          boxShadow: isSelected ? "0 0 10px rgba(6, 182, 212, 0.4)" : "none",
+                          transition: "all 0.15s"
+                        }}
+                      >
+                        <span style={{ width: "18px", height: "18px", borderRadius: "50%", background: t.color, display: "inline-block", border: "1.5px solid rgba(255,255,255,0.4)", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+                        <span style={{ fontSize: "0.65rem", fontWeight: isSelected ? 800 : 700, color: "white", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center" }}>
+                          {t.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -1567,7 +1631,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
               <label style={{ display: "block", marginBottom: "8px", fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)" }}>
                 Forma del Marcador en Mapa:
               </label>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))", gap: "6px" }}>
                 {[
                   { value: "circle", label: "Círculo" },
                   { value: "triangle", label: "Triángulo" },

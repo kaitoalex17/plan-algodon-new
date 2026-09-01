@@ -620,13 +620,23 @@ export default function Map({
     }
   };
 
-  // Cargar capa guardada
+  // Cargar capa guardada (con migración de Carto que pide API Key hacia Esri Dark Canvas libre)
   useEffect(() => {
     const saved = localStorage.getItem("map_layer");
     if (saved) {
-      setTileUrl(saved);
+      if (saved.includes("cartocdn.com")) {
+        const fallback = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+        localStorage.setItem("map_layer", fallback);
+        setTileUrl(fallback);
+      } else {
+        setTileUrl(saved);
+      }
     } else if (initialMapState?.mapLayer) {
-      setTileUrl(initialMapState.mapLayer);
+      if (initialMapState.mapLayer.includes("cartocdn.com")) {
+        setTileUrl("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}");
+      } else {
+        setTileUrl(initialMapState.mapLayer);
+      }
     }
   }, [initialMapState]);
   
@@ -692,7 +702,26 @@ export default function Map({
         maxZoom={21}
         ref={mapRef}
       >
-        <TileLayer url={tileUrl} maxZoom={21} maxNativeZoom={21} />
+        {tileUrl === "dark-contrast" ? (
+          <TileLayer 
+            url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" 
+            className="dark-tile-filter"
+            maxZoom={21} 
+            maxNativeZoom={21} 
+          />
+        ) : tileUrl.includes("arcgisonline.com") ? (
+          <TileLayer 
+            url={tileUrl} 
+            maxZoom={21} 
+            maxNativeZoom={16} 
+          />
+        ) : (
+          <TileLayer 
+            url={tileUrl} 
+            maxZoom={21} 
+            maxNativeZoom={21} 
+          />
+        )}
         
         {/* Marcador de mi posición GPS */}
         {userLocation && (
@@ -991,7 +1020,8 @@ export default function Map({
               minWidth: "160px", zIndex: 1001
             }}>
               {[
-                { value: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", label: "🌙 Modo Oscuro (Carto)" },
+                { value: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", label: "Modo Oscuro (Esri)" },
+                { value: "dark-contrast", label: "Modo Oscuro (Alto Contraste)" },
                 { value: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", label: "Google Normal" },
                 { value: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", label: "Google Satélite" },
                 { value: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", label: "Google Híbrido" },

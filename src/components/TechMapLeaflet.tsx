@@ -198,9 +198,9 @@ export default function TechMapLeaflet({
         </button>
         <button
           type="button"
-          onClick={() => setTileLayerUrl("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png")}
+          onClick={() => setTileLayerUrl("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}")}
           style={{
-            background: tileLayerUrl.includes("dark_all") ? "var(--primary-color, #FF7900)" : "transparent",
+            background: tileLayerUrl.includes("arcgisonline.com") ? "var(--primary-color, #FF7900)" : "transparent",
             color: "white",
             border: "none",
             borderRadius: "6px",
@@ -210,7 +210,7 @@ export default function TechMapLeaflet({
             cursor: "pointer"
           }}
         >
-          🌙 Modo Oscuro
+          Modo Oscuro
         </button>
         <button
           type="button"
