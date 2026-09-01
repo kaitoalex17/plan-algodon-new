@@ -1,9 +1,8 @@
 "use client";
 
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 
 export type TechLocationItem = {
   userId: string;
@@ -30,42 +29,47 @@ function MapController({
   selectedTech: TechLocationItem | null;
 }) {
   const map = useMap();
-  const hasFitted = useRef(false);
+  const hasFittedRef = useRef(false);
 
-  // Invalidar tamaño inmediatamente para que Leaflet pinte las baldosas sin quedarse gris
+  // Invalidar tamaño inmediatamente y en intervalos para que Leaflet dibuje baldosas sin quedarse gris
   useEffect(() => {
-    const handleResize = () => {
-      map.invalidateSize();
-    };
-
-    const timer1 = setTimeout(() => map.invalidateSize(), 150);
-    const timer2 = setTimeout(() => map.invalidateSize(), 600);
+    map.invalidateSize();
+    const t1 = setTimeout(() => map.invalidateSize(), 150);
+    const t2 = setTimeout(() => map.invalidateSize(), 600);
+    const handleResize = () => map.invalidateSize();
     window.addEventListener("resize", handleResize);
 
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      clearTimeout(t1);
+      clearTimeout(t2);
       window.removeEventListener("resize", handleResize);
     };
   }, [map]);
 
   // Centrar con animación suave en el técnico seleccionado
   useEffect(() => {
-    if (selectedTech && selectedTech.lat && selectedTech.lng) {
-      map.flyTo([selectedTech.lat, selectedTech.lng], 16, { animate: true, duration: 1 });
+    if (selectedTech && typeof selectedTech.lat === "number" && typeof selectedTech.lng === "number") {
+      try {
+        map.flyTo([selectedTech.lat, selectedTech.lng], 16, { animate: true, duration: 1.2 });
+      } catch (e) {}
     }
   }, [selectedTech, map]);
 
   // Auto-encuadre inicial de todos los técnicos con posición registrada
   useEffect(() => {
-    if (!hasFitted.current && techs.length > 0 && !selectedTech) {
+    if (!hasFittedRef.current && techs && techs.length > 0 && !selectedTech) {
       const validPoints = techs
-        .filter(t => t.hasGps && t.lat && t.lng)
+        .filter(t => t.hasGps && typeof t.lat === "number" && typeof t.lng === "number")
         .map(t => [t.lat, t.lng] as [number, number]);
 
-      if (validPoints.length > 0) {
-        map.fitBounds(validPoints, { padding: [50, 50], maxZoom: 15 });
-        hasFitted.current = true;
+      if (validPoints.length === 1) {
+        map.setView(validPoints[0], 15);
+        hasFittedRef.current = true;
+      } else if (validPoints.length > 1) {
+        try {
+          map.fitBounds(validPoints, { padding: [50, 50], maxZoom: 15 });
+          hasFittedRef.current = true;
+        } catch (e) {}
       }
     }
   }, [techs, selectedTech, map]);
@@ -85,16 +89,24 @@ export default function TechMapLeaflet({
   // Capa por defecto: Google Maps Calles
   const [tileLayerUrl, setTileLayerUrl] = useState("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}");
 
-  // Coordenadas por defecto (Estepona / Costa del Sol) o primera del técnico
-  const firstWithGps = techs.find(t => t.hasGps && t.lat && t.lng);
-  const initialCenter: [number, number] = firstWithGps
-    ? [firstWithGps.lat, firstWithGps.lng]
-    : [36.425, -5.144];
+  // Coordenadas por defecto (Costa del Sol) o primer técnico con GPS
+  const firstWithGps = useMemo(() => {
+    return techs.find(t => t.hasGps && typeof t.lat === "number" && typeof t.lng === "number");
+  }, [techs]);
+
+  const initialCenter: [number, number] = useMemo(() => {
+    return firstWithGps ? [firstWithGps.lat, firstWithGps.lng] : [36.516, -4.885];
+  }, [firstWithGps]);
+
+  // Filtrar técnicos con GPS válido
+  const validTechs = useMemo(() => {
+    return techs.filter(t => t.hasGps && typeof t.lat === "number" && typeof t.lng === "number");
+  }, [techs]);
 
   // Helper para generar icono de técnico con avatar e indicador de estado
   const createTechIcon = (t: TechLocationItem) => {
     const isLive = t.isLive;
-    const initial = (t.name || "T").charAt(0).toUpperCase();
+    const initial = (t.name || "T").trim().charAt(0).toUpperCase() || "T";
     const color = t.color || "#FF7900";
 
     const pulseHtml = isLive
@@ -135,7 +147,7 @@ export default function TechMapLeaflet({
   };
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: "500px", overflow: "hidden" }}>
       
       {/* Selector flotante de capas de mapa */}
       <div style={{
@@ -205,7 +217,8 @@ export default function TechMapLeaflet({
       <MapContainer
         center={initialCenter}
         zoom={12}
-        style={{ width: "100%", height: "100%" }}
+        style={{ width: "100%", height: "100%", minHeight: "500px" }}
+        preferCanvas={true}
         zoomControl={true}
       >
         <TileLayer
@@ -216,7 +229,23 @@ export default function TechMapLeaflet({
 
         <MapController techs={techs} selectedTech={selectedTech} />
 
-        {techs.filter(t => t.hasGps && t.lat && t.lng).map(t => {
+        {/* 1. Círculos de radio de precisión de técnicos en vivo (elementos directos de Leaflet) */}
+        {validTechs.filter(t => t.isLive).map(t => (
+          <Circle
+            key={`circle-${t.userId}`}
+            center={[t.lat, t.lng]}
+            radius={t.accuracy || 25}
+            pathOptions={{
+              fillColor: t.color || "#FF7900",
+              fillOpacity: 0.15,
+              color: t.color || "#FF7900",
+              weight: 1.5
+            }}
+          />
+        ))}
+
+        {/* 2. Marcadores interactivos de cada técnico con popup (elementos directos de Leaflet) */}
+        {validTechs.map(t => {
           const dateStr = t.updatedAt
             ? new Date(t.updatedAt).toLocaleString("es-ES", {
                 day: "2-digit",
@@ -228,76 +257,62 @@ export default function TechMapLeaflet({
             : "No registrada";
 
           return (
-            <div key={t.userId}>
-              {t.isLive && (
-                <Circle
-                  center={[t.lat, t.lng]}
-                  radius={t.accuracy || 25}
-                  pathOptions={{
-                    fillColor: t.color || "#FF7900",
-                    fillOpacity: 0.15,
-                    color: t.color || "#FF7900",
-                    weight: 1.5
-                  }}
-                />
-              )}
-
-              <Marker
-                position={[t.lat, t.lng]}
-                icon={createTechIcon(t)}
-                eventHandlers={{
-                  click: () => onSelectTech(t)
-                }}
-              >
-                <Popup>
-                  <div style={{ minWidth: "220px", padding: "4px", color: "#1e293b", fontFamily: "sans-serif" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                      <span style={{ width: "12px", height: "12px", borderRadius: "50%", background: t.color || "#FF7900" }} />
-                      <strong style={{ fontSize: "14px" }}>{t.name}</strong>
-                    </div>
-
-                    <p style={{ margin: "2px 0", fontSize: "11px", color: "#64748b" }}>{t.email}</p>
-
-                    <div style={{ margin: "6px 0", padding: "6px 8px", borderRadius: "6px", background: t.isLive ? "rgba(16, 185, 129, 0.1)" : "rgba(100, 116, 139, 0.1)" }}>
-                      <span style={{ fontSize: "11px", fontWeight: 800, color: t.isLive ? "#059669" : "#475569" }}>
-                        {t.isLive ? "🟢 EN VIVO (Conectado)" : "⚪ Última ubicación registrada"}
-                      </span>
-                      <div style={{ fontSize: "11px", marginTop: "2px", color: "#334155" }}>
-                        🕒 <strong>{dateStr}</strong>
-                      </div>
-                      {t.lastAction && (
-                        <div style={{ fontSize: "10px", marginTop: "2px", opacity: 0.85, color: "#64748b" }}>
-                          📌 {t.lastAction}
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ fontSize: "11px", background: "#f8fafc", padding: "4px 6px", borderRadius: "4px", border: "1px solid #e2e8f0", marginBottom: "8px" }}>
-                      GPS: <code>{t.lat.toFixed(5)}, {t.lng.toFixed(5)}</code>
-                    </div>
-
-                    <a
-                      href={`https://www.google.com/maps?q=${t.lat},${t.lng}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        display: "block",
-                        textAlign: "center",
-                        background: "var(--primary-color, #FF7900)",
-                        color: "white",
-                        padding: "6px 10px",
-                        borderRadius: "6px",
-                        fontSize: "11px",
-                        fontWeight: 800,
-                        textDecoration: "none"
-                      }}
-                    >
-                      Abrir en Google Maps ↗
-                    </a>
+            <Marker
+              key={`marker-${t.userId}`}
+              position={[t.lat, t.lng]}
+              icon={createTechIcon(t)}
+              eventHandlers={{
+                click: () => onSelectTech(t)
+              }}
+            >
+              <Popup>
+                <div style={{ minWidth: "220px", padding: "4px", color: "#1e293b", fontFamily: "sans-serif" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                    <span style={{ width: "12px", height: "12px", borderRadius: "50%", background: t.color || "#FF7900" }} />
+                    <strong style={{ fontSize: "14px" }}>{t.name}</strong>
                   </div>
-                </Popup>
-              </Marker>
-            </div>
+
+                  <p style={{ margin: "2px 0", fontSize: "11px", color: "#64748b" }}>{t.email}</p>
+
+                  <div style={{ margin: "6px 0", padding: "6px 8px", borderRadius: "6px", background: t.isLive ? "rgba(16, 185, 129, 0.1)" : "rgba(100, 116, 139, 0.1)" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 800, color: t.isLive ? "#059669" : "#475569" }}>
+                      {t.isLive ? "🟢 EN VIVO (Conectado)" : "⚪ Última ubicación registrada"}
+                    </span>
+                    <div style={{ fontSize: "11px", marginTop: "2px", color: "#334155" }}>
+                      🕒 <strong>{dateStr}</strong>
+                    </div>
+                    {t.lastAction && (
+                      <div style={{ fontSize: "10px", marginTop: "2px", opacity: 0.85, color: "#64748b" }}>
+                        📌 {t.lastAction}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: "11px", background: "#f8fafc", padding: "4px 6px", borderRadius: "4px", border: "1px solid #e2e8f0", marginBottom: "8px" }}>
+                    GPS: <code>{t.lat.toFixed(5)}, {t.lng.toFixed(5)}</code>
+                  </div>
+
+                  <a
+                    href={`https://www.google.com/maps?q=${t.lat},${t.lng}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: "block",
+                      textAlign: "center",
+                      background: "var(--primary-color, #FF7900)",
+                      color: "white",
+                      padding: "6px 10px",
+                      borderRadius: "6px",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      textDecoration: "none"
+                    }}
+                  >
+                    Abrir en Google Maps ↗
+                  </a>
+                </div>
+              </Popup>
+            </Marker>
           );
         })}
       </MapContainer>

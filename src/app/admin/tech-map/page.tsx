@@ -116,7 +116,7 @@ export default function TechMapPage() {
       <div style={{ display: "flex", flex: 1, position: "relative", height: "calc(100vh - 75px)", overflow: "hidden" }}>
         
         {/* Mapa Leaflet Seguro */}
-        <div style={{ flex: 1, height: "100%", position: "relative" }}>
+        <div style={{ flex: 1, height: "100%", minWidth: 0, position: "relative" }}>
           <TechMapLeaflet
             techs={techs}
             selectedTech={selectedTech}
