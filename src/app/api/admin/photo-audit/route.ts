@@ -233,6 +233,13 @@ export async function PATCH(req: NextRequest) {
       }
     });
 
+    try {
+      const { triggerBroadcastUpdate } = await import("@/app/api/realtime/route");
+      await triggerBroadcastUpdate();
+    } catch (realtimeErr) {
+      console.error("Error al emitir sincronización en vivo desde photo-audit:", realtimeErr);
+    }
+
     return NextResponse.json({ success: true, cto: updatedCto });
   } catch (error: any) {
     console.error("Error en photo-audit PATCH:", error);

@@ -224,6 +224,13 @@ export async function PATCH(request: NextRequest) {
       }
     });
 
+    try {
+      const { triggerBroadcastUpdate } = await import("@/app/api/realtime/route");
+      await triggerBroadcastUpdate();
+    } catch (realtimeErr) {
+      console.error("Error al emitir sincronización en vivo desde repair:", realtimeErr);
+    }
+
     return NextResponse.json({
       success: true,
       cto: updatedCto,

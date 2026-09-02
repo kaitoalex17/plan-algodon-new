@@ -65,6 +65,13 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
+    try {
+      const { triggerBroadcastUpdate } = await import("@/app/api/realtime/route");
+      await triggerBroadcastUpdate();
+    } catch (realtimeErr) {
+      console.error("Error al emitir sincronización en vivo desde bulk:", realtimeErr);
+    }
+
     return NextResponse.json({ success: true, count: result.count });
   } catch (error: any) {
     console.error("Error en PATCH masivo /api/admin/ctos/bulk:", error);
