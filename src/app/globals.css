@@ -130,27 +130,10 @@ a {
   margin: 0 auto 1.5rem auto;
 }
 
-/* Lock general page viewport zooming and bouncing on mobile ONLY on the main map root */
+/* El scroll solo se bloquea en la vista del mapa, no globalmente */
 html, body {
   width: 100%;
-  height: 100%;
-  height: 100dvh;
-  overflow: hidden;
   overscroll-behavior: none;
-  -webkit-overflow-scrolling: auto;
-}
-
-/* Allow normal scrolling and zooming on admin and dedicated pages */
-html.admin-page, body.admin-page,
-html.scrollable-page, body.scrollable-page,
-body.photo-guide-page {
-  width: 100% !important;
-  height: auto !important;
-  min-height: 100% !important;
-  overflow-y: auto !important;
-  position: static !important;
-  touch-action: pan-y !important;
-  -webkit-overflow-scrolling: touch !important;
 }
 
 /* Allow scrolling on interactive modal and drawer containers */
