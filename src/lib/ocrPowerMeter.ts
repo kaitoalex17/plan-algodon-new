@@ -537,15 +537,19 @@ export async function processPowerMeterUploadOcr({
         formDataJson: JSON.stringify(formData)
       };
 
-      // Si es el Divisor 1, actualizar también el campo potenciaDbm de la CTO si estaba vacío o sin rellenar
-      if (divisorIndex === 1 && (!cto?.potenciaDbm || cto.potenciaDbm.trim() === "")) {
-        updateData.potenciaDbm = result.power;
+      // Si es el Divisor 1, actualizar también el campo potenciaDbm de la CTO
+      if (divisorIndex === 1 && result.power) {
+        const floatVal = parseFloat(result.power);
+        if (!isNaN(floatVal)) {
+          updateData.potenciaDbm = floatVal;
+        }
       }
 
       await prisma.cTO.update({
         where: { id: ctoId },
         data: updateData
       });
+      console.log(`[OCR PowerMeter] CTO ${ctoId} actualizada con Divisor ${safeDivisor} (${result.power} dBm) en formDataJson y potenciaDbm`);
     } catch (ctoUpdateErr) {
       console.error("Error al actualizar datos de CTO tras OCR:", ctoUpdateErr);
     }
