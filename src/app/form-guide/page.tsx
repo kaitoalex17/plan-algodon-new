@@ -81,6 +81,10 @@ function FormGuideContent() {
   const [callesList, setCallesList] = useState<string[]>([""]);
   const [influenciaOtros, setInfluenciaOtros] = useState(false);
   const [influenciaOtrosTexto, setInfluenciaOtrosTexto] = useState("");
+  // Característica 1.9.5: Área de influencia automática con IA
+  const [ctoCoords, setCtoCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
+  const [influenciaAreaAuto, setInfluenciaAreaAuto] = useState("");
+  const [loadingInfluenceArea, setLoadingInfluenceArea] = useState(false);
 
   // Result modal state
   const [generatedComment, setGeneratedComment] = useState("");
@@ -136,6 +140,10 @@ function FormGuideContent() {
         .then(res => res.json())
         .then(data => {
           setCtoNum(data.num || "");
+          setCtoCoords({
+            lat: data.lat !== undefined && data.lat !== null ? parseFloat(data.lat) : null,
+            lng: data.lng !== undefined && data.lng !== null ? parseFloat(data.lng) : null
+          });
           if (data.formDataJson) {
             try {
               const saved = JSON.parse(data.formDataJson);
@@ -197,6 +205,9 @@ function FormGuideContent() {
               }
               setInfluenciaOtros(saved.influenciaOtros || false);
               setInfluenciaOtrosTexto(saved.influenciaOtrosTexto || "");
+              if (saved.influenciaAreaAuto) {
+                setInfluenciaAreaAuto(saved.influenciaAreaAuto);
+              }
               setHasSavedForm(true);
             } catch (e) {
               console.error("Error parsing saved data:", e);
@@ -245,6 +256,39 @@ function FormGuideContent() {
     setCallesList(updated);
   };
 
+  // Característica 1.9.5: Consultar área de influencia con IA y georreferenciación
+  const handleFetchInfluenceArea = async () => {
+    if (!ctoId) return;
+    if (ctoCoords.lat === null || ctoCoords.lng === null) {
+      alert("Esta CTO no tiene coordenadas GPS válidas. Asigna las coordenadas en el mapa o ficha antes de buscar el área de influencia.");
+      return;
+    }
+
+    setLoadingInfluenceArea(true);
+    try {
+      const res = await fetch(`/api/ctos/${ctoId}/influence-area`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lat: ctoCoords.lat,
+          lng: ctoCoords.lng
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.text) {
+        setInfluenciaAreaAuto(data.text);
+      } else {
+        alert(data.error || "No se pudo obtener el área de influencia automáticamente.");
+      }
+    } catch (err: any) {
+      console.error("Error buscando área de influencia:", err);
+      alert("Error al conectar con el servidor para buscar el área de influencia.");
+    } finally {
+      setLoadingInfluenceArea(false);
+    }
+  };
+
   // Check if form has modified data
   const isDirty = () => {
     return (
@@ -262,9 +306,14 @@ function FormGuideContent() {
 
   const handleClose = () => {
     if (isDirty()) {
-      if (confirm("¿Estás seguro de que deseas salir? Los datos no guardados se perderán.")) {
-        window.close();
+      if (!confirm("¿Estás seguro de que deseas salir? Los datos no guardados se perderán.")) {
+        return;
       }
+    }
+    
+    // Si estamos dentro de un iframe/modal en la misma aplicación
+    if (typeof window !== "undefined" && window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "CLOSE_FORM_GUIDE" }, "*");
     } else {
       window.close();
     }
@@ -369,6 +418,9 @@ function FormGuideContent() {
     // 6. Área de influencia
     const part3Lines: string[] = [];
     const influenciaParts: string[] = [];
+    if (influenciaAreaAuto.trim()) {
+      influenciaParts.push(influenciaAreaAuto.trim());
+    }
     if (influenciaPorterillo) {
       influenciaParts.push("Se adjunta foto del porterillo automático");
     }
@@ -480,6 +532,7 @@ function FormGuideContent() {
         callesList: callesList.filter(c => c.trim() !== ""),
         influenciaOtros,
         influenciaOtrosTexto,
+        influenciaAreaAuto,
         generatedComment: reportText,
         commentPart1: part1,
         commentPart2: part2,
@@ -499,6 +552,10 @@ function FormGuideContent() {
 
       if (!res.ok) {
         alert("Atención: El comentario se generó pero no se pudo guardar en el servidor. Cópialo manualmente.");
+      } else {
+        if (typeof window !== "undefined" && window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: "FORM_GUIDE_SAVED", ctoId }, "*");
+        }
       }
     } catch (err) {
       console.error(err);
@@ -662,6 +719,10 @@ function FormGuideContent() {
         @keyframes slideIn {
           from { opacity: 0; transform: translateY(12px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
         .animate-step {
           animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -1337,6 +1398,109 @@ function FormGuideContent() {
                     )}
                   </div>
 
+                  {/* CARACTERÍSTICA 1.9.5: Búsqueda Inteligente de Área de Influencia con IA */}
+                  <div 
+                    style={{
+                      borderRadius: "14px",
+                      border: "1.5px solid rgba(56, 189, 248, 0.3)",
+                      background: "linear-gradient(145deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.6) 100%)",
+                      padding: "16px",
+                      marginTop: "6px",
+                      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)"
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+                        </svg>
+                        <span style={{ fontWeight: 800, fontSize: "0.9rem", color: "var(--text-color, #f8fafc)" }}>
+                          Detección Automática de Área
+                        </span>
+                      </div>
+                      <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 8px", borderRadius: "6px", background: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", border: "1px solid rgba(56, 189, 248, 0.3)" }}>
+                        v1.9.5
+                      </span>
+                    </div>
+
+                    <p style={{ fontSize: "0.78rem", color: "#94a3b8", margin: "0 0 12px 0", lineHeight: "1.35" }}>
+                      {lang === "es" 
+                        ? "Calcula la calle más cercana y casas unifamiliares en un radio de hasta 100m en ambas direcciones (aceras par/impar, excluyendo edificios)."
+                        : "Визначає найближчу вулицю та будинки в радіусі до 100м в обох напрямках (без багатоповерхівок)."}
+                    </p>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <button
+                        type="button"
+                        onClick={handleFetchInfluenceArea}
+                        disabled={loadingInfluenceArea}
+                        style={{
+                          width: "100%",
+                          padding: "10px 16px",
+                          borderRadius: "10px",
+                          background: loadingInfluenceArea ? "rgba(56, 189, 248, 0.2)" : "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                          color: "#ffffff",
+                          border: "none",
+                          fontWeight: 700,
+                          fontSize: "0.85rem",
+                          cursor: loadingInfluenceArea ? "not-allowed" : "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "8px",
+                          transition: "all 0.2s"
+                        }}
+                      >
+                        {loadingInfluenceArea ? (
+                          <>
+                            <div style={{
+                              width: "16px",
+                              height: "16px",
+                              border: "2px solid rgba(255,255,255,0.3)",
+                              borderTopColor: "#ffffff",
+                              borderRadius: "50%",
+                              animation: "spin 0.8s linear infinite"
+                            }} />
+                            <span>Consultando mapa e IA...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="11" cy="11" r="8" />
+                              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                            <span>Buscar Área de Influencia</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Cuadro de texto totalmente editable para el resultado */}
+                      <div>
+                        <label style={{ display: "block", fontSize: "0.75rem", color: "#64748b", marginBottom: "4px", fontWeight: 700 }}>
+                          Texto de Área de Influencia (Editable):
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={influenciaAreaAuto}
+                          onChange={e => setInfluenciaAreaAuto(e.target.value)}
+                          placeholder="Ej: Area de influencia : Calle Mayor 1, 3, 5 (Impares) y 2, 4, 6 (Pares)"
+                          className="survey-input"
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            borderRadius: "10px",
+                            background: "var(--bg-color, #0f172a)",
+                            border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                            color: "var(--text-color, white)",
+                            fontSize: "0.85rem",
+                            resize: "vertical"
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
               </div>
             )}
@@ -1557,12 +1721,16 @@ function FormGuideContent() {
               <button
                 onClick={() => {
                   setShowResultModal(false);
-                  window.close();
+                  if (typeof window !== "undefined" && window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: "CLOSE_FORM_GUIDE" }, "*");
+                  } else {
+                    window.close();
+                  }
                 }}
                 className="btn"
                 style={{ width: "100%", background: "rgba(255, 255, 255, 0.06)", color: "var(--text-color, white)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", justifyContent: "center", fontWeight: 700, borderRadius: "12px", minHeight: "38px" }}
               >
-                Cerrar pestaña
+                Cerrar Guía
               </button>
             </div>
 

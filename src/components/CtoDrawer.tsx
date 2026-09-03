@@ -151,6 +151,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   // States for toggles, progress and gallery
   const [showFiberDetails, setShowFiberDetails] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [showFormGuideModal, setShowFormGuideModal] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ percent: number; loaded: number; total: number } | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [activeImgIndex, setActiveImgIndex] = useState<number | null>(null);
@@ -210,6 +211,21 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       syncPortsData();
     }
   }, [showPortsModal, showVisualPortsViewer, syncPortsData]);
+
+  // Listener para cerrar o recargar modal in-app de Guía de Formulario
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data) return;
+      if (event.data.type === "CLOSE_FORM_GUIDE") {
+        setShowFormGuideModal(false);
+      } else if (event.data.type === "FORM_GUIDE_SAVED") {
+        setShowFormGuideModal(false);
+        fetchCtoDetails();
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [fetchCtoDetails]);
 
   const handlePortsCapacityChange = (newCap: number) => {
     setPortsCapacity(newCap);
@@ -1460,7 +1476,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <div style={{ display: "flex", gap: "8px", marginTop: "0.5rem" }}>
                 <button 
                   type="button"
-                  onClick={() => window.open(`/form-guide?ctoId=${cto.id}`, "_blank")}
+                  onClick={() => setShowFormGuideModal(true)}
                   className="btn" 
                   style={{ flex: 1, minHeight: "34px", background: "#8b5cf6", color: "white", fontSize: "0.8rem", padding: "4px 8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
                 >
@@ -3013,7 +3029,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                     type="button" 
                     onClick={() => {
                       setShowFormSheetModal(false);
-                      window.open(`/form-guide?ctoId=${cto.id}`, "_blank");
+                      setShowFormGuideModal(true);
                     }} 
                     className="btn" 
                     style={{ flex: "1 1 120px", background: "#8b5cf6", color: "white", justifyContent: "center", fontWeight: 700, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px" }}
@@ -3247,6 +3263,92 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           </div>
         );
       })()}
+
+      {/* MODAL IN-APP: GUÍA DE FORMULARIO EMBEBIDA (SIN NUEVA PESTAÑA) */}
+      {showFormGuideModal && (
+        <div 
+          style={{ 
+            position: "fixed", 
+            inset: 0, 
+            background: "rgba(3, 7, 18, 0.88)", 
+            zIndex: 6500, 
+            display: "flex", 
+            flexDirection: "column",
+            alignItems: "center", 
+            justifyContent: "center", 
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)"
+          }}
+        >
+          {/* Header Barra Superior */}
+          <div 
+            style={{ 
+              width: "100%", 
+              maxWidth: "680px", 
+              display: "flex", 
+              justifyContent: "space-between", 
+              alignItems: "center", 
+              padding: "10px 16px",
+              background: "transparent"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#8b5cf6" }} />
+              <span style={{ fontWeight: 800, fontSize: "0.95rem", color: "#f8fafc" }}>
+                Guía de Formulario — CTO {cto?.num || ""}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowFormGuideModal(false);
+                fetchCtoDetails();
+              }}
+              style={{
+                background: "rgba(255, 255, 255, 0.1)",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+                color: "#ffffff",
+                borderRadius: "8px",
+                padding: "4px 12px",
+                cursor: "pointer",
+                fontSize: "0.82rem",
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              <span>✕</span> Cerrar
+            </button>
+          </div>
+
+          {/* Contenedor Iframe fluido */}
+          <div 
+            style={{ 
+              width: "100%", 
+              maxWidth: "680px", 
+              flex: 1, 
+              maxHeight: "calc(100vh - 65px)",
+              background: "var(--bg-color, #0f172a)", 
+              borderRadius: "16px", 
+              border: "1px solid var(--border-color, rgba(255, 255, 255, 0.12))",
+              overflow: "hidden",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7)",
+              marginBottom: "12px"
+            }}
+          >
+            <iframe
+              src={`/form-guide?ctoId=${cto.id}&embedded=true`}
+              style={{
+                width: "100%",
+                height: "100%",
+                border: "none"
+              }}
+              title={`Guía de Formulario CTO ${cto.num}`}
+            />
+          </div>
+        </div>
+      )}
 
       {/* MODAL 1: GESTIÓN Y EDICIÓN DE PUERTOS DE FIBRA (BOTÓN TRIÁNGULO) */}
       {showPortsModal && (
