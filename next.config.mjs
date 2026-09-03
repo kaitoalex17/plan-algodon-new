@@ -1,13 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
+  serverExternalPackages: ['tesseract.js', 'sharp'],
   outputFileTracingIncludes: {
-    '/**/*': ['./node_modules/pdfkit/js/data/**'],
+    '/**/*': ['./node_modules/pdfkit/js/data/**', './node_modules/tesseract.js/**'],
   },
 };
 

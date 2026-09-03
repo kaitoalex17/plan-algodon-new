@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import path from "path";
 import { createWorker } from "tesseract.js";
 import { prisma } from "@/lib/prisma";
 
@@ -69,12 +70,10 @@ export function parsePowerMeterText(
     detectedPower = "-70.00";
     detectedRawNumber = "70.00";
   } else {
-    // Buscar número con signo negativo: ej. -18.75, - 21.30, -22,15
-    const negativeMatches = Array.from(clean.matchAll(/-\s*([1-7][0-9](?:[.,][0-9]{1,2})?)/g));
-    for (const m of negativeMatches) {
-      const numStr = m[1].replace(",", ".");
-      const numVal = parseFloat(numStr);
-      // Validar rango solicitado entre 11.00 y 70.00
+    // 1. Buscar con signo negativo o similar explícito: ej. -18.75, ~19.50, _22.15
+    const explicitMatches = Array.from(clean.matchAll(/[-~_]\s*([1-7][0-9](?:[.,][0-9]{1,2})?)/g));
+    for (const m of explicitMatches) {
+      const numVal = parseFloat(m[1].replace(",", "."));
       if (numVal >= 11.0 && numVal <= 70.0) {
         detectedRawNumber = numVal.toFixed(2);
         detectedPower = `-${detectedRawNumber}`;
@@ -82,12 +81,24 @@ export function parsePowerMeterText(
       }
     }
 
-    // Si no encontró con '-', buscar números cerca de 'dBm' o 'dB'
+    // 2. Si no tiene signo, buscar cualquier número decimal entre 11.00 y 70.00 (en fibra óptica toda medición es negativa)
     if (!detectedPower) {
-      const dbmMatches = Array.from(clean.matchAll(/([1-7][0-9](?:[.,][0-9]{1,2})?)\s*(?:dBm|dB)/gi));
+      const decimalMatches = Array.from(clean.matchAll(/\b([1-7][0-9][.,][0-9]{1,2})\b/g));
+      for (const m of decimalMatches) {
+        const numVal = parseFloat(m[1].replace(",", "."));
+        if (numVal >= 11.0 && numVal <= 70.0) {
+          detectedRawNumber = numVal.toFixed(2);
+          detectedPower = `-${detectedRawNumber}`;
+          break;
+        }
+      }
+    }
+
+    // 3. Fallback: buscar número junto a dBm o dB o aislado en rango 11 a 70
+    if (!detectedPower) {
+      const dbmMatches = Array.from(clean.matchAll(/([1-7][0-9](?:[.,][0-9]{1,2})?)\s*(?:dBm|dB)?/gi));
       for (const m of dbmMatches) {
-        const numStr = m[1].replace(",", ".");
-        const numVal = parseFloat(numStr);
+        const numVal = parseFloat(m[1].replace(",", "."));
         if (numVal >= 11.0 && numVal <= 70.0) {
           detectedRawNumber = numVal.toFixed(2);
           detectedPower = `-${detectedRawNumber}`;
@@ -130,12 +141,26 @@ export async function recognizePowerMeter(
   try {
     const preprocessed = await preprocessForLcd(input);
 
+    // Ruta física real al script del worker para evitar errores de empaquetado de Next.js
+    const workerScript = path.join(
+      process.cwd(),
+      "node_modules",
+      "tesseract.js",
+      "src",
+      "worker-script",
+      "node",
+      "index.js"
+    );
+
     // Ejecutar con timeout de 8 segundos para evitar bloqueos
     const ocrPromise = (async () => {
-      const worker = await createWorker("eng");
+      const worker = await createWorker("eng", 1, {
+        workerPath: workerScript,
+        errorHandler: (wErr) => console.error("[OCR Worker Error]:", wErr)
+      });
       try {
         await worker.setParameters({
-          tessedit_char_whitelist: "0123456789.-+dDBmLoLNnWw "
+          tessedit_char_whitelist: "0123456789.-+~_dDBmLoLNnWw "
         });
         const ret = await worker.recognize(preprocessed);
         return ret.data.text;
@@ -149,7 +174,10 @@ export async function recognizePowerMeter(
     });
 
     const extractedText = await Promise.race([ocrPromise, timeoutPromise]);
-    return parsePowerMeterText(extractedText, targetWl, alertWls);
+    console.log("[OCR PowerMeter] Texto crudo extraído de la pantalla:", JSON.stringify(extractedText));
+    const result = parsePowerMeterText(extractedText, targetWl, alertWls);
+    console.log("[OCR PowerMeter] Resultado del análisis:", result);
+    return result;
   } catch (err: any) {
     console.warn("Aviso: Fallo no bloqueante en OCR de medidor:", err?.message || err);
     return {
