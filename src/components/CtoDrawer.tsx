@@ -147,6 +147,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [checkFormulario, setCheckFormulario] = useState(false);
   const [checkDrive, setCheckDrive] = useState(false);
   const [checkAntala, setCheckAntala] = useState(false);
+  const [confirmConformidadAnomalia, setConfirmConformidadAnomalia] = useState(false);
 
   // States for toggles, progress and gallery
   const [showFiberDetails, setShowFiberDetails] = useState(false);
@@ -156,6 +157,102 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [showGallery, setShowGallery] = useState(false);
   const [activeImgIndex, setActiveImgIndex] = useState<number | null>(null);
   const [markingReparo, setMarkingReparo] = useState(false);
+
+  // Fetch complete details of this specific CTO (Declarado tempranamente para evitar TDZ en SSR)
+  const fetchCtoDetails = useCallback(async () => {
+    if (!cto?.id) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/ctos/${cto.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDetails(data);
+        setStatus(data.status || "PENDIENTE");
+        setSubStatusId(data.subStatusId || "");
+        setAssignedToId(data.assignedToId || "");
+        setNotas(data.notas || "");
+        setZona(data.zona || "");
+        setCluster(data.cluster || "");
+        
+        setAuditedById(data.auditedById || "");
+
+        // Extraer fecha y hora de auditoría solo si está auditada
+        let initialAuditDateTime = "";
+        if (data.auditDateTime) {
+          const dt = new Date(data.auditDateTime);
+          if (!isNaN(dt.getTime())) {
+            const y = dt.getFullYear();
+            const m = String(dt.getMonth() + 1).padStart(2, "0");
+            const d = String(dt.getDate()).padStart(2, "0");
+            const hh = String(dt.getHours()).padStart(2, "0");
+            const mm = String(dt.getMinutes()).padStart(2, "0");
+            initialAuditDateTime = `${y}-${m}-${d}T${hh}:${mm}`;
+          }
+        }
+        setAuditDateTime(initialAuditDateTime);
+
+        // Cargar nuevos campos de fibra
+        setPuertosTotal(data.puertosTotal !== null ? data.puertosTotal : 8);
+        setPuertosOcupados(data.puertosOcupados !== null ? data.puertosOcupados : 0);
+        setPotenciaDbm(data.potenciaDbm !== null ? data.potenciaDbm : "");
+
+        // Cargar divisores desde formDataJson o potenciaDbm
+        let loadedSplitters: { signal: string; isOcr?: boolean; ocrWl?: string }[] = [];
+        if (data.formDataJson) {
+          try {
+            const parsedForm = JSON.parse(data.formDataJson);
+            if (Array.isArray(parsedForm.splitters) && parsedForm.splitters.length > 0 && parsedForm.splitters.some((s: any) => s.signal)) {
+              loadedSplitters = parsedForm.splitters.map((s: any, idx: number) => {
+                const ocrMatch = parsedForm.ocrSplitters?.find((o: any) => o.divisor === idx + 1);
+                const rawSignal = (s.signal || "").replace(/^-+/, "").trim();
+                return {
+                  signal: rawSignal,
+                  isOcr: Boolean(ocrMatch),
+                  ocrWl: ocrMatch?.wavelength
+                };
+              });
+            } else if (Array.isArray(parsedForm.ocrSplitters) && parsedForm.ocrSplitters.length > 0) {
+              loadedSplitters = parsedForm.ocrSplitters.map((o: any) => ({
+                signal: (o.rawNumber || o.power || "").replace(/^-+/, "").trim(),
+                isOcr: true,
+                ocrWl: o.wavelength
+              }));
+            }
+          } catch (e) {}
+        }
+
+        if (loadedSplitters.length === 0) {
+          const rawPot = String(data.potenciaDbm || "").replace(/^-+/, "").trim();
+          loadedSplitters = [{ signal: rawPot, isOcr: false }];
+        }
+
+        const potenciaImgsCount = Math.min(6, (data.images || []).filter((i: any) => 
+          (i.url || "").toLowerCase().includes("potencia")
+        ).length);
+        while (loadedSplitters.length < Math.max(1, potenciaImgsCount) && loadedSplitters.length < 6) {
+          loadedSplitters.push({ signal: "", isOcr: false });
+        }
+
+        // Limitar SIEMPRE a máximo 6 divisores
+        if (loadedSplitters.length > 6) {
+          loadedSplitters = loadedSplitters.slice(0, 6);
+        }
+
+        setDrawerSplitters(loadedSplitters);
+
+        setCierreSeguridad(data.cierreSeguridad !== null ? data.cierreSeguridad : true);
+        setEtiquetadoCorrecto(data.etiquetadoCorrecto !== null ? data.etiquetadoCorrecto : true);
+        setHasFormulario(data.hasFormulario || false);
+        setHasDrive(data.hasDrive || false);
+        setHasAntala(data.hasAntala || false);
+        setIsProgramada(data.category === "PROGRAMADA");
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [cto?.id]);
 
   // Estados para el Modal de Puertos (Botón Triángulo)
   const [showPortsModal, setShowPortsModal] = useState(false);
@@ -226,6 +323,94 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, [fetchCtoDetails]);
+
+  // Detección centralizada de anomalías de potencia y longitud de onda / frecuencia
+  const powerAuditAlerts = useMemo(() => {
+    const imgs = details?.images || [];
+    const hasPotImg = imgs.some((i: any) => (i.url || "").toLowerCase().includes("potencia"));
+    
+    // Si NO se detecta ni se agregan fotos de potencia, NO sale nada
+    if (!hasPotImg) {
+      return {
+        hasWlMismatch: false,
+        hasPowerOutOfRange: false,
+        hasAnyAnomaly: false,
+        wlDetails: null,
+        outOfRangePowerValues: [] as string[]
+      };
+    }
+
+    let ocrWlMismatch: any = null;
+    let ocrSplittersList: any[] = [];
+    if (details?.formDataJson) {
+      try {
+        const parsed = JSON.parse(details.formDataJson);
+        if (parsed.ocrWavelengthMismatch) {
+          ocrWlMismatch = parsed.ocrWavelengthMismatch;
+        }
+        if (Array.isArray(parsed.ocrSplitters)) {
+          ocrSplittersList = parsed.ocrSplitters;
+        }
+      } catch (e) {}
+    }
+
+    // Comprobar si alguno de los splitters tiene longitud de onda distinta a 1490
+    if (!ocrWlMismatch) {
+      const splitterWithDiffWl = drawerSplitters.find(s => s.ocrWl && s.ocrWl !== "1490");
+      if (splitterWithDiffWl) {
+        ocrWlMismatch = {
+          detected: splitterWithDiffWl.ocrWl,
+          expected: "1490"
+        };
+      } else {
+        const ocrDiff = ocrSplittersList.find((o: any) => o.wavelength && o.wavelength !== "1490");
+        if (ocrDiff) {
+          ocrWlMismatch = {
+            detected: ocrDiff.wavelength,
+            expected: "1490"
+          };
+        }
+      }
+    }
+
+    const hasWlMismatch = Boolean(ocrWlMismatch);
+
+    // Comprobar si la señal es -70 / Lo / LO o superior a -22.99 dBm (ej: -23.00, -24.17, -25.00)
+    const outOfRangePowerValues: string[] = [];
+    const checkSignalVal = (raw: string | number | undefined | null) => {
+      if (raw === undefined || raw === null) return;
+      const str = String(raw).trim();
+      if (!str) return;
+      if (/^(lo|l\.o\.)$/i.test(str)) {
+        outOfRangePowerValues.push("Lo");
+        return;
+      }
+      const cleanNum = str.replace(/[^-0-9.,]/g, "").replace(",", ".");
+      const num = parseFloat(cleanNum);
+      if (!isNaN(num)) {
+        // En magnitud de atenuación: -70.00 o si es peor que -22.99 (es decir <= -23.00, o abs(num) > 22.99)
+        const absVal = Math.abs(num);
+        if (absVal >= 70 || absVal > 22.99) {
+          outOfRangePowerValues.push(`-${absVal.toFixed(2)} dBm`);
+        }
+      }
+    };
+
+    drawerSplitters.forEach(s => checkSignalVal(s.signal));
+    if (potenciaDbm !== "") checkSignalVal(potenciaDbm);
+    ocrSplittersList.forEach((o: any) => checkSignalVal(o.power || o.rawNumber));
+
+    const hasPowerOutOfRange = outOfRangePowerValues.length > 0;
+    const hasAnyAnomaly = hasWlMismatch || hasPowerOutOfRange;
+
+    return {
+      hasWlMismatch,
+      hasPowerOutOfRange,
+      hasAnyAnomaly,
+      wlDetails: ocrWlMismatch,
+      outOfRangePowerValues: Array.from(new Set(outOfRangePowerValues))
+    };
+  }, [details?.images, details?.formDataJson, drawerSplitters, potenciaDbm]);
 
   const handlePortsCapacityChange = (newCap: number) => {
     setPortsCapacity(newCap);
@@ -524,101 +709,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     }
   };
 
-  // Fetch complete details of this specific CTO
-  const fetchCtoDetails = useCallback(async () => {
-    if (!cto?.id) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/ctos/${cto.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setDetails(data);
-        setStatus(data.status || "PENDIENTE");
-        setSubStatusId(data.subStatusId || "");
-        setAssignedToId(data.assignedToId || "");
-        setNotas(data.notas || "");
-        setZona(data.zona || "");
-        setCluster(data.cluster || "");
-        
-        setAuditedById(data.auditedById || "");
 
-        // Extraer fecha y hora de auditoría solo si está auditada
-        let initialAuditDateTime = "";
-        if (data.auditDateTime) {
-          const dt = new Date(data.auditDateTime);
-          if (!isNaN(dt.getTime())) {
-            const y = dt.getFullYear();
-            const m = String(dt.getMonth() + 1).padStart(2, "0");
-            const d = String(dt.getDate()).padStart(2, "0");
-            const hh = String(dt.getHours()).padStart(2, "0");
-            const mm = String(dt.getMinutes()).padStart(2, "0");
-            initialAuditDateTime = `${y}-${m}-${d}T${hh}:${mm}`;
-          }
-        }
-        setAuditDateTime(initialAuditDateTime);
-
-        // Cargar nuevos campos de fibra
-        setPuertosTotal(data.puertosTotal !== null ? data.puertosTotal : 8);
-        setPuertosOcupados(data.puertosOcupados !== null ? data.puertosOcupados : 0);
-        setPotenciaDbm(data.potenciaDbm !== null ? data.potenciaDbm : "");
-
-        // Cargar divisores desde formDataJson o potenciaDbm
-        let loadedSplitters: { signal: string; isOcr?: boolean; ocrWl?: string }[] = [];
-        if (data.formDataJson) {
-          try {
-            const parsedForm = JSON.parse(data.formDataJson);
-            if (Array.isArray(parsedForm.splitters) && parsedForm.splitters.length > 0 && parsedForm.splitters.some((s: any) => s.signal)) {
-              loadedSplitters = parsedForm.splitters.map((s: any, idx: number) => {
-                const ocrMatch = parsedForm.ocrSplitters?.find((o: any) => o.divisor === idx + 1);
-                const rawSignal = (s.signal || "").replace(/^-+/, "").trim();
-                return {
-                  signal: rawSignal,
-                  isOcr: Boolean(ocrMatch),
-                  ocrWl: ocrMatch?.wavelength
-                };
-              });
-            } else if (Array.isArray(parsedForm.ocrSplitters) && parsedForm.ocrSplitters.length > 0) {
-              loadedSplitters = parsedForm.ocrSplitters.map((o: any) => ({
-                signal: (o.rawNumber || o.power || "").replace(/^-+/, "").trim(),
-                isOcr: true,
-                ocrWl: o.wavelength
-              }));
-            }
-          } catch (e) {}
-        }
-
-        if (loadedSplitters.length === 0) {
-          const rawPot = String(data.potenciaDbm || "").replace(/^-+/, "").trim();
-          loadedSplitters = [{ signal: rawPot, isOcr: false }];
-        }
-
-        const potenciaImgsCount = Math.min(6, (data.images || []).filter((i: any) => 
-          (i.url || "").toLowerCase().includes("potencia")
-        ).length);
-        while (loadedSplitters.length < Math.max(1, potenciaImgsCount) && loadedSplitters.length < 6) {
-          loadedSplitters.push({ signal: "", isOcr: false });
-        }
-
-        // Limitar SIEMPRE a máximo 6 divisores
-        if (loadedSplitters.length > 6) {
-          loadedSplitters = loadedSplitters.slice(0, 6);
-        }
-
-        setDrawerSplitters(loadedSplitters);
-
-        setCierreSeguridad(data.cierreSeguridad !== null ? data.cierreSeguridad : true);
-        setEtiquetadoCorrecto(data.etiquetadoCorrecto !== null ? data.etiquetadoCorrecto : true);
-        setHasFormulario(data.hasFormulario || false);
-        setHasDrive(data.hasDrive || false);
-        setHasAntala(data.hasAntala || false);
-        setIsProgramada(data.category === "PROGRAMADA");
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, [cto?.id]);
 
   // Fetch dropdown options (substatuses and users)
   const fetchOptions = useCallback(async () => {
@@ -980,24 +1071,18 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (status === "CORRECTO") {
-      let ocrWlMismatch: any = null;
-      if (details?.formDataJson) {
-        try {
-          const parsed = JSON.parse(details.formDataJson);
-          if (parsed.ocrWavelengthMismatch) {
-            ocrWlMismatch = parsed.ocrWavelengthMismatch;
-          }
-        } catch (e) {}
+    if (status === "CORRECTO" && powerAuditAlerts.hasAnyAnomaly) {
+      const msgs = [];
+      if (powerAuditAlerts.hasWlMismatch) {
+        msgs.push(`- Longitud de onda distinta a normativa (${powerAuditAlerts.wlDetails?.detected} nm vs ${powerAuditAlerts.wlDetails?.expected || "1490"} nm)`);
       }
-      const imgs = details?.images || [];
-      const hasPot = imgs.some((i: any) => (i.url || "").toLowerCase().includes("potencia"));
-      if (ocrWlMismatch && hasPot) {
-        const confirmProceed = confirm(
-          `⚠️ AVISO DE NORMATIVA:\n\nLa longitud de onda detectada en la medición de potencia (${ocrWlMismatch.detected} nm) es DISTINTA a la normativa (${ocrWlMismatch.expected || "1490"} nm).\n\nPor favor, revisa la imagen de potencia antes de guardar como CORRECTO.\n\n¿Deseas continuar y guardar de todas formas?`
-        );
-        if (!confirmProceed) return;
+      if (powerAuditAlerts.hasPowerOutOfRange) {
+        msgs.push(`- Señal anómala fuera de rango / Lo (${powerAuditAlerts.outOfRangePowerValues.join(", ")})`);
       }
+      const confirmProceed = confirm(
+        `⚠️ ADVERTENCIA DE AUDITORÍA:\n\nSe han detectado las siguientes alertas en la medición de potencia:\n${msgs.join("\n")}\n\nRecuerda haber ajustado el subestado si corresponde.\n\n¿Confirmas que deseas guardar como CORRECTO?`
+      );
+      if (!confirmProceed) return;
     }
     await saveCto(status, assignedToId);
   };
@@ -1006,10 +1091,17 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     setCheckFormulario(hasFormulario);
     setCheckDrive(hasDrive);
     setCheckAntala(hasAntala);
+    setConfirmConformidadAnomalia(false);
     setShowChecklistModal(true);
   };
 
   const handleConfirmChecklist = async () => {
+    // Si hay anomalía en fotos de potencia, es obligatorio el checkbox de conformidad
+    if (powerAuditAlerts.hasAnyAnomaly && !confirmConformidadAnomalia) {
+      alert("⚠️ Debes marcar la casilla de confirmación y conformidad con la medición de potencia/frecuencia para poder cerrar como CORRECTO.");
+      return;
+    }
+
     const currentUserId = (session?.user as any)?.id;
     const auditorName = session?.user?.name || session?.user?.email || "Auditor";
     const activeSubStatus = subStatuses.find(s => s.id === subStatusId);
@@ -1037,23 +1129,11 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     if (missingPhotos.length > 0) {
       auditLogAction = `⚠️ Auditada con FOTOS FALTANTES (${missingPhotos.join(", ")}) por ${auditorName}`;
     }
-
-    // Comprobar si OCR detectó una frecuencia/longitud de onda distinta a 1490 nm
-    let ocrWlMismatch: any = null;
-    if (details?.formDataJson) {
-      try {
-        const parsed = JSON.parse(details.formDataJson);
-        if (parsed.ocrWavelengthMismatch) {
-          ocrWlMismatch = parsed.ocrWavelengthMismatch;
-        }
-      } catch (e) {}
+    if (powerAuditAlerts.hasWlMismatch) {
+      auditLogAction += ` [Frecuencia ${powerAuditAlerts.wlDetails?.detected}nm confirmada]`;
     }
-
-    if (ocrWlMismatch && hasPot) {
-      const confirmProceed = confirm(
-        `⚠️ AVISO DE NORMATIVA:\n\nLa longitud de onda detectada en la medición de potencia (${ocrWlMismatch.detected} nm) es DISTINTA a la normativa (${ocrWlMismatch.expected || "1490"} nm).\n\nPor favor, revisa la imagen de potencia antes de dar por cerrada la orden.\n\n¿Deseas confirmar el cierre de todas formas?`
-      );
-      if (!confirmProceed) return;
+    if (powerAuditAlerts.hasPowerOutOfRange) {
+      auditLogAction += ` [Potencia anómala ${powerAuditAlerts.outOfRangePowerValues.join(", ")} confirmada]`;
     }
 
     const gpsLocation = await getQuickGpsLocation();
@@ -1703,6 +1783,49 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   </select>
                 </div>
               </div>
+
+              {/* Banner de aviso de Subestado por Potencia Anómala o Frecuencia Diferente */}
+              {powerAuditAlerts.hasPowerOutOfRange && (
+                <div style={{
+                  background: "rgba(239, 68, 68, 0.12)",
+                  border: "1.5px solid #ef4444",
+                  borderRadius: "8px",
+                  padding: "10px 12px",
+                  marginBottom: "1rem",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px"
+                }}>
+                  <span style={{ fontSize: "1.3rem", lineHeight: 1 }}>⚠️</span>
+                  <div style={{ fontSize: "0.82rem", color: "#f87171", lineHeight: 1.4 }}>
+                    <strong style={{ color: "#ef4444", display: "block", marginBottom: "2px" }}>
+                      ¡Atención! Señal anómala detectada ({powerAuditAlerts.outOfRangePowerValues.join(", ")}):
+                    </strong>
+                    Recuerda cambiar el <strong>subestado</strong> de la CTO para reflejar la avería o causa de baja señal antes de continuar.
+                  </div>
+                </div>
+              )}
+
+              {powerAuditAlerts.hasWlMismatch && !powerAuditAlerts.hasPowerOutOfRange && (
+                <div style={{
+                  background: "rgba(245, 158, 11, 0.12)",
+                  border: "1.5px solid #f59e0b",
+                  borderRadius: "8px",
+                  padding: "10px 12px",
+                  marginBottom: "1rem",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px"
+                }}>
+                  <span style={{ fontSize: "1.3rem", lineHeight: 1 }}>⚠️</span>
+                  <div style={{ fontSize: "0.82rem", color: "#fbbf24", lineHeight: 1.4 }}>
+                    <strong style={{ color: "#f59e0b", display: "block", marginBottom: "2px" }}>
+                      Frecuencia distinta detectada ({powerAuditAlerts.wlDetails?.detected} nm en vez de {powerAuditAlerts.wlDetails?.expected || "1490"} nm):
+                    </strong>
+                    Recuerda verificar si corresponde cambiar el subestado de la CTO.
+                  </div>
+                </div>
+              )}
 
               {/* Nuevos Datos de Fibra (Bajo botón i) */}
               {showFiberDetails && (
@@ -2860,6 +2983,61 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                   <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#d97706" }}>3. Registro en Antala</span>
                 </label>
               )}
+
+              {/* AVISO Y BLOQUEO DE CONFORMIDAD POR ANOMALÍA DE FRECUENCIA O POTENCIA */}
+              {powerAuditAlerts.hasAnyAnomaly && (
+                <div style={{
+                  background: "rgba(239, 68, 68, 0.08)",
+                  border: "2px solid #ef4444",
+                  borderRadius: "12px",
+                  padding: "12px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontSize: "1.2rem" }}>⚠️</span>
+                    <span style={{ fontSize: "0.86rem", fontWeight: 800, color: "#ef4444" }}>
+                      Advertencia de Potencia / Frecuencia Detectada
+                    </span>
+                  </div>
+
+                  {powerAuditAlerts.hasWlMismatch && (
+                    <div style={{ fontSize: "0.78rem", color: "#fca5a5" }}>
+                      • <strong>Longitud de onda en otra frecuencia:</strong> {powerAuditAlerts.wlDetails?.detected} nm (Normativa esperada: {powerAuditAlerts.wlDetails?.expected || "1490"} nm).
+                    </div>
+                  )}
+
+                  {powerAuditAlerts.hasPowerOutOfRange && (
+                    <div style={{ fontSize: "0.78rem", color: "#fca5a5" }}>
+                      • <strong>Potencia anómala o fuera de rango:</strong> {powerAuditAlerts.outOfRangePowerValues.join(", ")} (Superior a -22.99 dBm o sin señal / Lo).
+                      <span style={{ display: "block", color: "#f87171", marginTop: "2px", fontWeight: 700 }}>
+                        Recuerda cambiar el subestado de la CTO si no lo has hecho aún.
+                      </span>
+                    </div>
+                  )}
+
+                  <label style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "10px",
+                    marginTop: "6px",
+                    paddingTop: "8px",
+                    borderTop: "1px dashed rgba(239, 68, 68, 0.3)",
+                    cursor: "pointer"
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={confirmConformidadAnomalia}
+                      onChange={e => setConfirmConformidadAnomalia(e.target.checked)}
+                      style={{ width: "18px", height: "18px", minWidth: "18px", marginTop: "2px", accentColor: "#ef4444", cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-color)" }}>
+                      He revisado la medición (frecuencia / nivel de potencia) y <strong>estoy de acuerdo</strong> en marcar esta CTO como CORRECTO.
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* Botones de acción */}
@@ -2875,14 +3053,21 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               <button 
                 type="button" 
                 onClick={handleConfirmChecklist} 
+                disabled={powerAuditAlerts.hasAnyAnomaly && !confirmConformidadAnomalia}
                 className="btn" 
                 style={{ 
                   flex: 1.6, 
-                  background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", 
+                  background: (powerAuditAlerts.hasAnyAnomaly && !confirmConformidadAnomalia)
+                    ? "#64748b"
+                    : "linear-gradient(135deg, #10b981 0%, #059669 100%)", 
                   color: "white", 
                   fontWeight: 800,
                   fontSize: "0.88rem",
-                  boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)"
+                  boxShadow: (powerAuditAlerts.hasAnyAnomaly && !confirmConformidadAnomalia)
+                    ? "none"
+                    : "0 4px 12px rgba(16, 185, 129, 0.3)",
+                  cursor: (powerAuditAlerts.hasAnyAnomaly && !confirmConformidadAnomalia) ? "not-allowed" : "pointer",
+                  opacity: (powerAuditAlerts.hasAnyAnomaly && !confirmConformidadAnomalia) ? 0.7 : 1
                 }}
               >
                 Confirmar y Auditar
