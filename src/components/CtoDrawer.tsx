@@ -453,6 +453,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [cacheKey, setCacheKey] = useState(Date.now());
   const [zoomScale, setZoomScale] = useState(1);
   const [showFormSheetModal, setShowFormSheetModal] = useState(false);
+  const [showSummaryCopyModal, setShowSummaryCopyModal] = useState(false);
   const [deletingForm, setDeletingForm] = useState(false);
   const [showDriveTooltip, setShowDriveTooltip] = useState(false);
   const [retryingDrive, setRetryingDrive] = useState(false);
@@ -2991,32 +2992,261 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               })()}
             </div>
 
-            {/* Footer */}
-            <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid var(--border-color)", display: "flex", gap: "10px" }}>
+            {/* Footer de Ficha Formulario */}
+            <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid var(--border-color)", display: "flex", gap: "8px", flexWrap: "wrap" }}>
               {details?.formDataJson && (
-                <button 
-                  type="button" 
-                  onClick={handleDeleteForm} 
-                  disabled={deletingForm}
-                  className="btn" 
-                  style={{ flex: 1, background: "#ef4444", color: "white", justifyContent: "center", fontWeight: 700 }}
-                >
-                  {deletingForm ? "Borrando..." : "Borrar Formulario"}
-                </button>
+                <>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowSummaryCopyModal(true)} 
+                    className="btn btn-primary" 
+                    style={{ flex: "1 1 140px", justifyContent: "center", fontWeight: 700, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px" }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    <span>Abrir Resumen</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setShowFormSheetModal(false);
+                      window.open(`/form-guide?ctoId=${cto.id}`, "_blank");
+                    }} 
+                    className="btn" 
+                    style={{ flex: "1 1 120px", background: "#8b5cf6", color: "white", justifyContent: "center", fontWeight: 700, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px" }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    <span>Modificar</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    onClick={handleDeleteForm} 
+                    disabled={deletingForm}
+                    className="btn" 
+                    style={{ background: "#ef4444", color: "white", justifyContent: "center", fontWeight: 700, fontSize: "0.85rem", padding: "0 12px" }}
+                    title="Eliminar formulario permanentemente"
+                  >
+                    {deletingForm ? "..." : "Borrar"}
+                  </button>
+                </>
               )}
               <button 
                 type="button" 
                 onClick={() => setShowFormSheetModal(false)} 
-                className="btn btn-primary" 
-                style={{ flex: 2, justifyContent: "center" }}
+                className="btn" 
+                style={{ flex: "1 1 80px", background: "var(--border-color)", color: "var(--text-color)", justifyContent: "center", fontWeight: 600, fontSize: "0.85rem" }}
               >
-                Entendido
+                Cerrar
               </button>
             </div>
 
           </div>
         </div>
       )}
+
+      {/* MODAL DE RESUMEN DE COPIADO (IDÉNTICO AL FINAL DE GUÍA DE FORMULARIO) */}
+      {showSummaryCopyModal && details?.formDataJson && (() => {
+        let data: any = {};
+        try {
+          data = JSON.parse(details.formDataJson);
+        } catch (e) {
+          data = {};
+        }
+
+        const formattedCtoCode = (() => {
+          const parts = (cto?.num || "").split("-");
+          if (parts.length === 3) {
+            return `${parts[0]}-${parts[2]}`;
+          }
+          return (cto?.num || "").replace("-29-", "-");
+        })();
+
+        const part1Text = data.commentPart1 || (data.generatedComment ? data.generatedComment.split("\n\n")[0] : "");
+        const part2Text = data.commentPart2 || "";
+        const part2CommentText = data.commentPart2Comment || "";
+        const part3Text = data.commentPart3 || "";
+
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(5, 8, 16, 0.85)", zIndex: 6000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.2rem", backdropFilter: "blur(8px)" }}>
+            <div className="glass-panel" style={{ width: "95%", maxWidth: "500px", padding: "1.5rem 1.8rem", background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.1))", borderRadius: "20px", color: "var(--text-color, white)", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.6)", maxHeight: "90vh", overflowY: "auto" }}>
+              
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800, color: "var(--primary-color)", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    Resumen de Formulario — CTO {cto.num}
+                  </h3>
+                  <span style={{ fontSize: "0.78rem", color: "#64748b", marginTop: "2px", display: "block" }}>
+                    Copia individualmente las secciones con un solo clic
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSummaryCopyModal(false)}
+                  style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "var(--text-color)", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontSize: "1rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Código CTO */}
+              <div style={{ marginBottom: "1rem" }}>
+                <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
+                  Código CTO:
+                </span>
+                <div 
+                  style={{
+                    width: "100%", padding: "8px 12px", background: "var(--bg-color)", border: "1px solid var(--border-color)", borderRadius: "8px",
+                    color: "var(--text-color)", fontFamily: "monospace", fontSize: "0.85rem", boxSizing: "border-box", textAlign: "left",
+                    display: "flex", alignItems: "center", minHeight: "36px"
+                  }}
+                >
+                  {formattedCtoCode}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(formattedCtoCode);
+                    alert("Código CTO copiado.");
+                  }}
+                  className="btn btn-primary"
+                  style={{ width: "100%", marginTop: "6px", minHeight: "32px", fontSize: "0.78rem", fontWeight: 700, borderRadius: "8px" }}
+                >
+                  Copiar Código CTO
+                </button>
+              </div>
+
+              {/* Bloque 1 */}
+              {part1Text && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
+                    1. Datos de CTO y Antala:
+                  </span>
+                  <div 
+                    style={{
+                      width: "100%", padding: "8px 12px", background: "var(--bg-color)", border: "1px solid var(--border-color)", borderRadius: "8px",
+                      color: "var(--text-color)", fontFamily: "monospace", fontSize: "0.82rem", boxSizing: "border-box", textAlign: "left",
+                      whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: "1.4"
+                    }}
+                  >
+                    {part1Text}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(part1Text);
+                      alert("Datos y Antala copiados.");
+                    }}
+                    className="btn btn-primary"
+                    style={{ width: "100%", marginTop: "6px", minHeight: "32px", fontSize: "0.78rem", fontWeight: 700, borderRadius: "8px" }}
+                  >
+                    Copiar Sección 1
+                  </button>
+                </div>
+              )}
+
+              {/* Bloque 2 - Señal */}
+              {part2Text && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
+                    2. Señal:
+                  </span>
+                  <div 
+                    style={{
+                      width: "100%", padding: "8px 12px", background: "var(--bg-color)", border: "1px solid var(--border-color)", borderRadius: "8px",
+                      color: "var(--text-color)", fontFamily: "monospace", fontSize: "0.82rem", boxSizing: "border-box", textAlign: "left",
+                      whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: "1.4"
+                    }}
+                  >
+                    {part2Text}
+                  </div>
+                </div>
+              )}
+
+              {/* Bloque 2 - Comentario de Señal */}
+              {part2CommentText && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
+                    2. Comentario de Señal:
+                  </span>
+                  <div 
+                    style={{
+                      width: "100%", padding: "8px 12px", background: "var(--bg-color)", border: "1px solid var(--border-color)", borderRadius: "8px",
+                      color: "var(--text-color)", fontFamily: "monospace", fontSize: "0.82rem", boxSizing: "border-box", textAlign: "left",
+                      whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: "1.4"
+                    }}
+                  >
+                    {part2CommentText}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(part2CommentText);
+                      alert("Comentario de señal copiado.");
+                    }}
+                    className="btn btn-primary"
+                    style={{ width: "100%", marginTop: "6px", minHeight: "32px", fontSize: "0.78rem", fontWeight: 700, borderRadius: "8px" }}
+                  >
+                    Copiar Sección 2
+                  </button>
+                </div>
+              )}
+
+              {/* Bloque 3 - Área de Influencia */}
+              {part3Text && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px", textTransform: "uppercase" }}>
+                    3. Área de Influencia:
+                  </span>
+                  <div 
+                    style={{
+                      width: "100%", padding: "8px 12px", background: "var(--bg-color)", border: "1px solid var(--border-color)", borderRadius: "8px",
+                      color: "var(--text-color)", fontFamily: "monospace", fontSize: "0.82rem", boxSizing: "border-box", textAlign: "left",
+                      whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: "1.4"
+                    }}
+                  >
+                    {part3Text}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(part3Text);
+                      alert("Área de influencia copiada.");
+                    }}
+                    className="btn btn-primary"
+                    style={{ width: "100%", marginTop: "6px", minHeight: "32px", fontSize: "0.78rem", fontWeight: 700, borderRadius: "8px" }}
+                  >
+                    Copiar Sección 3
+                  </button>
+                </div>
+              )}
+
+              {/* Botón Cerrar */}
+              <div style={{ marginTop: "1.5rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowSummaryCopyModal(false)}
+                  className="btn"
+                  style={{ width: "100%", minHeight: "38px", background: "var(--border-color)", color: "var(--text-color)", fontWeight: 700, justifyContent: "center" }}
+                >
+                  Cerrar
+                </button>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL 1: GESTIÓN Y EDICIÓN DE PUERTOS DE FIBRA (BOTÓN TRIÁNGULO) */}
       {showPortsModal && (

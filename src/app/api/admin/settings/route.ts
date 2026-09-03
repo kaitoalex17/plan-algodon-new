@@ -28,6 +28,9 @@ export async function GET() {
       ocrAlertWavelengths: settingsMap.ocrAlertWavelengths || "1310, 1550, 850, 1625",
       ocrMinPower: settingsMap.ocrMinPower || "-11.00",
       ocrMaxPower: settingsMap.ocrMaxPower || "-70.00",
+      groqApiKey: settingsMap.groqApiKey || "",
+      groqModel: settingsMap.groqModel || "llama-3.2-11b-vision-preview",
+      groqPrompt: settingsMap.groqPrompt || "Analiza la pantalla de este medidor de potencia óptica (OPM / Optical Power Meter). Extrae:\n1. El valor de potencia en dBm (un número negativo, ej. -18.75 o -70.00 si indica Lo / LO / L.O.). En fibra óptica las potencias siempre son negativas.\n2. La longitud de onda en nm (ej. 1490, 1310, 1550, 850, 1625).\nDevuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {\"power\": \"-XX.XX\", \"wavelength\": \"XXXX\"}",
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -44,8 +47,33 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { 
       imageQuality, imageMaxWidth, sftpUser, sftpPassword, sftpPort,
-      ocrEnabled, ocrTargetWavelength, ocrAlertWavelengths, ocrMinPower, ocrMaxPower
+      ocrEnabled, ocrTargetWavelength, ocrAlertWavelengths, ocrMinPower, ocrMaxPower,
+      groqApiKey, groqModel, groqPrompt
     } = body;
+
+    if (groqApiKey !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: "groqApiKey" },
+        update: { value: String(groqApiKey).trim() },
+        create: { key: "groqApiKey", value: String(groqApiKey).trim() }
+      });
+    }
+
+    if (groqModel !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: "groqModel" },
+        update: { value: String(groqModel).trim() },
+        create: { key: "groqModel", value: String(groqModel).trim() }
+      });
+    }
+
+    if (groqPrompt !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: "groqPrompt" },
+        update: { value: String(groqPrompt) },
+        create: { key: "groqPrompt", value: String(groqPrompt) }
+      });
+    }
 
     if (imageQuality !== undefined) {
       await prisma.setting.upsert({

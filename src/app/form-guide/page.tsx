@@ -90,6 +90,7 @@ function FormGuideContent() {
   const [commentPart3, setCommentPart3] = useState("");
   const [showResultModal, setShowResultModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [hasSavedForm, setHasSavedForm] = useState(false);
 
   // Allow scrolling on mobile by adding body.admin-page on mount, and load page theme
   useEffect(() => {
@@ -196,6 +197,7 @@ function FormGuideContent() {
               }
               setInfluenciaOtros(saved.influenciaOtros || false);
               setInfluenciaOtrosTexto(saved.influenciaOtrosTexto || "");
+              setHasSavedForm(true);
             } catch (e) {
               console.error("Error parsing saved data:", e);
             }
@@ -478,7 +480,11 @@ function FormGuideContent() {
         callesList: callesList.filter(c => c.trim() !== ""),
         influenciaOtros,
         influenciaOtrosTexto,
-        generatedComment: reportText
+        generatedComment: reportText,
+        commentPart1: part1,
+        commentPart2: part2,
+        commentPart2Comment: part2Comment || "",
+        commentPart3: part3
       };
 
       const res = await fetch(`/api/ctos/${ctoId}`, {
@@ -698,7 +704,32 @@ function FormGuideContent() {
             <span style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 500 }}>{t.subtitle}</span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {hasSavedForm && (
+              <button
+                type="button"
+                onClick={() => {
+                  const { part1, part2, part2Comment, part3 } = generateReportParts();
+                  const full = generateReportText();
+                  setGeneratedComment(full);
+                  setCommentPart1(part1);
+                  setCommentPart2(part2);
+                  setCommentPart2Comment(part2Comment || "");
+                  setCommentPart3(part3);
+                  setShowResultModal(true);
+                }}
+                className="btn btn-primary"
+                style={{ minHeight: "32px", fontSize: "0.76rem", padding: "4px 10px", borderRadius: "8px", fontWeight: 700, display: "flex", alignItems: "center", gap: "5px" }}
+                title="Abrir resumen de copiado"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span>{lang === "es" ? "Abrir Resumen" : "Підсумок"}</span>
+              </button>
+            )}
+
             <div style={{ display: "flex", gap: "4px", background: "rgba(15, 23, 42, 0.4)", padding: "4px", borderRadius: "10px" }}>
               <button 
                 onClick={() => setLang("es")} 
@@ -1140,92 +1171,171 @@ function FormGuideContent() {
             )}
             {currentStep === 6 && (
               <div>
-                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 16px 0", color: "var(--text-color, #ffffff)", letterSpacing: "-0.02em" }}>{t.q6Title}</h2>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 6px 0", color: "var(--text-color, #ffffff)", letterSpacing: "-0.02em" }}>{t.q6Title}</h2>
+                <p style={{ fontSize: "0.82rem", color: "#94a3b8", margin: "0 0 16px 0" }}>
+                  {lang === "es" ? "Selecciona los elementos o zonas que cubre o afectan a esta CTO:" : "Оберіть елементи або зони, які охоплює ця CTO:"}
+                </p>
                 
-                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   
-                  {/* Porterillo */}
-                  <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", fontSize: "0.9rem", padding: "4px 0" }}>
+                  {/* Tarjeta: Porterillo */}
+                  <div 
+                    onClick={() => setInfluenciaPorterillo(!influenciaPorterillo)}
+                    style={{
+                      padding: "12px 16px",
+                      borderRadius: "14px",
+                      border: influenciaPorterillo ? "2px solid var(--primary-color, #FF7900)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                      background: influenciaPorterillo ? "rgba(255, 121, 0, 0.08)" : "var(--card-bg, #1e293b)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      transition: "all 0.2s"
+                    }}
+                  >
                     <input 
-                      type="checkbox"
+                      type="checkbox" 
                       checked={influenciaPorterillo}
                       onChange={e => setInfluenciaPorterillo(e.target.checked)}
-                      style={{ width: "18px", height: "18px", accentColor: "var(--primary-color, #3b82f6)" }}
+                      onClick={e => e.stopPropagation()}
+                      style={{ width: "18px", height: "18px", accentColor: "var(--primary-color, #FF7900)", cursor: "pointer" }}
                     />
-                    <span style={{ color: "var(--text-color, #e2e8f0)", fontWeight: 500 }}>{t.influenciaOptions.porterillo}</span>
-                  </label>
-
-                  {/* Calle */}
-                  <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", fontSize: "0.9rem", padding: "4px 0" }}>
-                    <input 
-                      type="checkbox"
-                      checked={influenciaCalle}
-                      onChange={e => setInfluenciaCalle(e.target.checked)}
-                      style={{ width: "18px", height: "18px", accentColor: "var(--primary-color, #3b82f6)" }}
-                    />
-                    <span style={{ color: "var(--text-color, #e2e8f0)", fontWeight: 500 }}>{t.influenciaOptions.calle}</span>
-                  </label>
-
-                  {influenciaCalle && (
-                    <div style={{ background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", borderRadius: "14px", padding: "16px", display: "flex", flexDirection: "column", gap: "10px", marginLeft: "1.8rem", animation: "slideIn 0.25s ease-out" }}>
-                      {callesList.map((calle, idx) => (
-                        <div key={idx} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                          <input 
-                            type="text"
-                            value={calle}
-                            onChange={e => updateCalle(idx, e.target.value)}
-                            placeholder={lang === "es" ? "Ej: Calle de Andalucía 14" : "Наприклад: Андалузька вулиця 14"}
-                            className="survey-input"
-                            style={{ flex: 1, padding: "8px 12px", borderRadius: "8px", background: "var(--bg-color, #0f172a)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.85rem" }}
-                          />
-                          <button 
-                            type="button"
-                            onClick={() => removeCalle(idx)}
-                            disabled={callesList.length <= 1}
-                            style={{ background: "rgba(239, 68, 68, 0.15)", color: "#f87171", border: "none", borderRadius: "8px", width: "34px", height: "34px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "0.85rem", opacity: callesList.length <= 1 ? 0.3 : 1 }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
-                      
-                      <button 
-                        type="button" 
-                        onClick={addCalle}
-                        style={{
-                          alignSelf: "flex-start", padding: "6px 12px", background: "none", border: "1px dashed var(--primary-color, rgba(59, 130, 246, 0.4))", color: "var(--primary-color, #60a5fa)",
-                          borderRadius: "8px", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px"
-                        }}
-                      >
-                        <span>+</span> {lang === "es" ? "Añadir otra calle" : "Додати іншу вулицю"}
-                      </button>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ color: "var(--text-color, #e2e8f0)", fontWeight: 700, fontSize: "0.92rem", display: "block" }}>
+                        {t.influenciaOptions.porterillo}
+                      </span>
+                      <span style={{ color: "#94a3b8", fontSize: "0.78rem" }}>
+                        {lang === "es" ? "Se adjuntará foto del porterillo del acceso" : "Додається фото домофону"}
+                      </span>
                     </div>
-                  )}
+                  </div>
 
-                  {/* Otros */}
-                  <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", fontSize: "0.9rem", padding: "4px 0" }}>
-                    <input 
-                      type="checkbox"
-                      checked={influenciaOtros}
-                      onChange={e => setInfluenciaOtros(e.target.checked)}
-                      style={{ width: "18px", height: "18px", accentColor: "var(--primary-color, #3b82f6)" }}
-                    />
-                    <span style={{ color: "var(--text-color, #e2e8f0)", fontWeight: 500 }}>{t.influenciaOptions.otros}</span>
-                  </label>
-
-                  {influenciaOtros && (
-                    <div style={{ marginLeft: "1.8rem", animation: "slideIn 0.25s ease-out" }}>
-                      <label style={{ display: "block", fontSize: "0.78rem", color: "#64748b", marginBottom: "6px", fontWeight: 600 }}>{t.influenciaOtrosLabel}</label>
-                      <textarea 
-                        value={influenciaOtrosTexto}
-                        onChange={e => setInfluenciaOtrosTexto(e.target.value)}
-                        placeholder="Especifica otros detalles..."
-                        rows={2}
-                        className="survey-input"
-                        style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", resize: "vertical", fontSize: "0.85rem" }}
+                  {/* Tarjeta: Calle */}
+                  <div 
+                    style={{
+                      borderRadius: "14px",
+                      border: influenciaCalle ? "2px solid var(--primary-color, #FF7900)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                      background: influenciaCalle ? "rgba(255, 121, 0, 0.08)" : "var(--card-bg, #1e293b)",
+                      overflow: "hidden",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    <div 
+                      onClick={() => setInfluenciaCalle(!influenciaCalle)}
+                      style={{
+                        padding: "12px 16px",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px"
+                      }}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={influenciaCalle}
+                        onChange={e => setInfluenciaCalle(e.target.checked)}
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: "18px", height: "18px", accentColor: "var(--primary-color, #FF7900)", cursor: "pointer" }}
                       />
+                      <div style={{ flex: 1 }}>
+                        <span style={{ color: "var(--text-color, #e2e8f0)", fontWeight: 700, fontSize: "0.92rem", display: "block" }}>
+                          {t.influenciaOptions.calle}
+                        </span>
+                        <span style={{ color: "#94a3b8", fontSize: "0.78rem" }}>
+                          {lang === "es" ? "Vía pública y números de portales asignados" : "Громадська вулиця та номери будинків"}
+                        </span>
+                      </div>
                     </div>
-                  )}
+
+                    {influenciaCalle && (
+                      <div style={{ padding: "0 16px 16px 16px", display: "flex", flexDirection: "column", gap: "10px", borderTop: "1px dashed var(--border-color, rgba(255, 255, 255, 0.08))", paddingTop: "12px" }}>
+                        {callesList.map((calle, idx) => (
+                          <div key={idx} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <input 
+                              type="text" 
+                              value={calle}
+                              onChange={e => updateCalle(idx, e.target.value)}
+                              placeholder={lang === "es" ? "Ej: Calle de Andalucía 14" : "Наприклад: Андалузька вулиця 14"}
+                              className="survey-input"
+                              style={{ flex: 1, padding: "8px 12px", borderRadius: "8px", background: "var(--bg-color, #0f172a)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.85rem" }}
+                            />
+                            <button 
+                              type="button" 
+                              onClick={() => removeCalle(idx)}
+                              disabled={callesList.length <= 1}
+                              style={{ background: "rgba(239, 68, 68, 0.15)", color: "#f87171", border: "none", borderRadius: "8px", width: "34px", height: "34px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "0.85rem", opacity: callesList.length <= 1 ? 0.3 : 1 }}
+                              title="Quitar calle"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        
+                        <button 
+                          type="button" 
+                          onClick={addCalle}
+                          style={{
+                            alignSelf: "flex-start", padding: "6px 14px", background: "rgba(255, 121, 0, 0.12)", border: "1px dashed var(--primary-color, rgba(255, 121, 0, 0.5))", color: "var(--primary-color, #FF7900)",
+                            borderRadius: "8px", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px"
+                          }}
+                        >
+                          <span>+</span> {lang === "es" ? "Añadir otra calle" : "Додати іншу вулицю"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tarjeta: Otros */}
+                  <div 
+                    style={{
+                      borderRadius: "14px",
+                      border: influenciaOtros ? "2px solid var(--primary-color, #FF7900)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                      background: influenciaOtros ? "rgba(255, 121, 0, 0.08)" : "var(--card-bg, #1e293b)",
+                      overflow: "hidden",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    <div 
+                      onClick={() => setInfluenciaOtros(!influenciaOtros)}
+                      style={{
+                        padding: "12px 16px",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px"
+                      }}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={influenciaOtros}
+                        onChange={e => setInfluenciaOtros(e.target.checked)}
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: "18px", height: "18px", accentColor: "var(--primary-color, #FF7900)", cursor: "pointer" }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <span style={{ color: "var(--text-color, #e2e8f0)", fontWeight: 700, fontSize: "0.92rem", display: "block" }}>
+                          {t.influenciaOptions.otros}
+                        </span>
+                        <span style={{ color: "#94a3b8", fontSize: "0.78rem" }}>
+                          {lang === "es" ? "Cualquier otra observación o detalle adicional" : "Будь-які інші спостереження або деталі"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {influenciaOtros && (
+                      <div style={{ padding: "0 16px 16px 16px", borderTop: "1px dashed var(--border-color, rgba(255, 255, 255, 0.08))", paddingTop: "12px" }}>
+                        <label style={{ display: "block", fontSize: "0.78rem", color: "#94a3b8", marginBottom: "6px", fontWeight: 600 }}>{t.influenciaOtrosLabel}</label>
+                        <textarea 
+                          value={influenciaOtrosTexto}
+                          onChange={e => setInfluenciaOtrosTexto(e.target.value)}
+                          placeholder={lang === "es" ? "Especifica otros detalles..." : "Вкажіть інші деталі..."}
+                          rows={2}
+                          className="survey-input"
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "var(--bg-color, #0f172a)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", resize: "vertical", fontSize: "0.85rem" }}
+                        />
+                      </div>
+                    )}
+                  </div>
 
                 </div>
               </div>

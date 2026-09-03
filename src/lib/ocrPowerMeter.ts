@@ -129,6 +129,159 @@ export function parsePowerMeterText(
 }
 
 /**
+ * Ejecuta análisis visual con Groq Vision (Llama 3.2 Vision)
+ */
+export async function recognizeWithGroqVision(
+  input: string | Buffer,
+  config: {
+    apiKey: string;
+    model?: string;
+    prompt?: string;
+    targetWavelength?: string;
+    alertWavelengths?: string[];
+  }
+): Promise<OcrResult> {
+  const targetWl = config.targetWavelength || "1490";
+  const alertWls = config.alertWavelengths || ["1310", "1550", "850", "1625"];
+
+  let jpegBuffer: Buffer;
+  try {
+    jpegBuffer = await sharp(input)
+      .rotate()
+      .resize({ width: 1000, height: 1000, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+  } catch (err) {
+    if (Buffer.isBuffer(input)) jpegBuffer = input;
+    else jpegBuffer = await sharp(input).toBuffer();
+  }
+
+  const base64Image = jpegBuffer.toString("base64");
+  const dataUrl = `data:image/jpeg;base64,${base64Image}`;
+
+  const defaultPrompt = `Analiza la pantalla de este medidor de potencia óptica (OPM / Optical Power Meter). Extrae:
+1. El valor de potencia en dBm (un número negativo, ej. -18.75 o -70.00 si indica Lo / LO / L.O.). En fibra óptica las potencias siempre son negativas.
+2. La longitud de onda en nm (ej. 1490, 1310, 1550, 850, 1625).
+Devuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {"power": "-XX.XX", "wavelength": "XXXX"}`;
+
+  const finalPrompt = (config.prompt && config.prompt.trim()) ? config.prompt.trim() : defaultPrompt;
+  const model = config.model || "llama-3.2-11b-vision-preview";
+
+  console.log(`[Groq Vision] Procesando imagen con modelo: ${model}...`);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.apiKey.trim()}`,
+        "Content-Type": "application/json"
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: finalPrompt },
+              { type: "image_url", image_url: { url: dataUrl } }
+            ]
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+        max_tokens: 250
+      })
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn(`[Groq Vision] Error en la respuesta (${response.status}):`, errText);
+      return { success: false, error: `Error Groq: ${response.status}` };
+    }
+
+    const json = await response.json();
+    const content = json.choices?.[0]?.message?.content;
+    console.log("[Groq Vision] Respuesta del modelo:", content);
+
+    if (!content) {
+      return { success: false, error: "Respuesta vacía de Groq" };
+    }
+
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(content);
+    } catch (e) {
+      const match = content.match(/\{[\s\S]*\}/);
+      if (match) parsed = JSON.parse(match[0]);
+    }
+
+    // 3. Normalizar potencia (dBm)
+    let detectedPower: string | undefined;
+    let detectedRawNumber: string | undefined;
+    let isLo = false;
+
+    const rawPowerStr = String(parsed.power || parsed.signal || parsed.potencia || "").trim();
+    if (/l[o0]|l\.o\./i.test(rawPowerStr)) {
+      isLo = true;
+      detectedPower = "-70.00";
+      detectedRawNumber = "70.00";
+    } else {
+      const cleanNumStr = rawPowerStr.replace(/[^-0-9.,]/g, "").replace(",", ".");
+      const absVal = Math.abs(parseFloat(cleanNumStr));
+      if (!isNaN(absVal) && absVal >= 10.0 && absVal <= 80.0) {
+        detectedRawNumber = absVal.toFixed(2);
+        detectedPower = `-${detectedRawNumber}`;
+      }
+    }
+
+    // 4. Normalizar longitud de onda (nm)
+    let detectedWavelength: string | undefined;
+    let hasWavelengthMismatch = false;
+
+    const rawWlStr = String(parsed.wavelength || parsed.longitud_onda || parsed.nm || "").trim();
+    const wlMatch = rawWlStr.match(/\b(1490|1310|1550|850|0850|1625|1650)\b/);
+    if (wlMatch) {
+      detectedWavelength = wlMatch[1].replace(/^0+/, "");
+      if (detectedWavelength !== targetWl && alertWls.includes(detectedWavelength)) {
+        hasWavelengthMismatch = true;
+      }
+    }
+
+    if (!detectedPower && !detectedWavelength) {
+      return {
+        success: false,
+        rawText: content,
+        error: "No se identificaron valores válidos en la respuesta"
+      };
+    }
+
+    return {
+      success: true,
+      power: detectedPower,
+      rawNumber: detectedRawNumber,
+      wavelength: detectedWavelength,
+      hasWavelengthMismatch,
+      expectedWavelength: targetWl,
+      isLo,
+      rawText: content
+    };
+  } catch (groqErr: any) {
+    clearTimeout(timeoutId);
+    console.warn("[Groq Vision] Fallo no bloqueante al consultar Groq:", groqErr?.message || groqErr);
+    return {
+      success: false,
+      error: groqErr?.message || "Error al procesar Groq Vision"
+    };
+  }
+}
+
+/**
  * Ejecuta OCR sobre una imagen con Tesseract.js localmente y con límite de tiempo (timeout de 8s)
  */
 export async function recognizePowerMeter(
@@ -205,11 +358,20 @@ export async function processPowerMeterUploadOcr({
   userId?: string;
 }): Promise<OcrResult | null> {
   try {
-    // 1. Obtener ajustes de OCR desde la base de datos
+    // 1. Obtener ajustes desde la base de datos
     const settings = await prisma.setting.findMany({
       where: {
         key: {
-          in: ["ocrEnabled", "ocrTargetWavelength", "ocrAlertWavelengths"]
+          in: [
+            "ocrEnabled",
+            "ocrTargetWavelength",
+            "ocrAlertWavelengths",
+            "ocrMinPower",
+            "ocrMaxPower",
+            "groqApiKey",
+            "groqModel",
+            "groqPrompt"
+          ]
         }
       }
     });
@@ -218,7 +380,7 @@ export async function processPowerMeterUploadOcr({
       return acc;
     }, {} as Record<string, string>);
 
-    // Si el OCR está explícitamente desactivado
+    // Si está explícitamente desactivado
     if (settingsMap.ocrEnabled === "false") {
       return null;
     }
@@ -229,14 +391,27 @@ export async function processPowerMeterUploadOcr({
       .map(s => s.trim())
       .filter(Boolean);
 
-    // 2. Ejecutar OCR
-    const input = filepath || buffer;
-    if (!input) return null;
+    const inputData = buffer || filepath;
+    if (!inputData) return null;
 
-    const result = await recognizePowerMeter(input, {
-      targetWavelength: targetWl,
-      alertWavelengths: alertWls
-    });
+    let result: OcrResult;
+
+    // Si hay API Key de Groq configurada, usar Groq Vision (IA de alta precisión)
+    if (settingsMap.groqApiKey && settingsMap.groqApiKey.trim() !== "") {
+      result = await recognizeWithGroqVision(inputData, {
+        apiKey: settingsMap.groqApiKey,
+        model: settingsMap.groqModel,
+        prompt: settingsMap.groqPrompt,
+        targetWavelength: targetWl,
+        alertWavelengths: alertWls
+      });
+    } else {
+      // Fallback a motor local si no se ha ingresado clave de Groq
+      result = await recognizePowerMeter(inputData, {
+        targetWavelength: targetWl,
+        alertWavelengths: alertWls
+      });
+    }
 
     if (!result.success || !result.power) {
       return result;

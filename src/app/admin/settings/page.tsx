@@ -19,12 +19,18 @@ export default function AdminSettingsPage() {
   const [sftpPort, setSftpPort] = useState("2222");
   const [savingSftp, setSavingSftp] = useState(false);
 
-  // Settings State: OCR Medición de Potencia
+  // Settings State: OCR Medición de Potencia / Groq Vision
   const [ocrEnabled, setOcrEnabled] = useState(true);
   const [ocrTargetWavelength, setOcrTargetWavelength] = useState("1490");
   const [ocrAlertWavelengths, setOcrAlertWavelengths] = useState("1310, 1550, 850, 1625");
   const [ocrMinPower, setOcrMinPower] = useState("-11.00");
   const [ocrMaxPower, setOcrMaxPower] = useState("-70.00");
+  const [groqApiKey, setGroqApiKey] = useState("");
+  const [groqModel, setGroqModel] = useState("llama-3.2-11b-vision-preview");
+  const [groqPrompt, setGroqPrompt] = useState(
+    "Analiza la pantalla de este medidor de potencia óptica (OPM / Optical Power Meter). Extrae:\n1. El valor de potencia en dBm (un número negativo, ej. -18.75 o -70.00 si indica Lo / LO / L.O.). En fibra óptica las potencias siempre son negativas.\n2. La longitud de onda en nm (ej. 1490, 1310, 1550, 850, 1625).\nDevuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {\"power\": \"-XX.XX\", \"wavelength\": \"XXXX\"}"
+  );
+  const [showGroqKey, setShowGroqKey] = useState(false);
   const [savingOcr, setSavingOcr] = useState(false);
 
   // Settings State: Mail
@@ -93,6 +99,9 @@ export default function AdminSettingsPage() {
         if (settings.ocrAlertWavelengths) setOcrAlertWavelengths(settings.ocrAlertWavelengths);
         if (settings.ocrMinPower) setOcrMinPower(settings.ocrMinPower);
         if (settings.ocrMaxPower) setOcrMaxPower(settings.ocrMaxPower);
+        if (settings.groqApiKey) setGroqApiKey(settings.groqApiKey);
+        if (settings.groqModel) setGroqModel(settings.groqModel);
+        if (settings.groqPrompt) setGroqPrompt(settings.groqPrompt);
       }
 
       if (resMail.ok) {
@@ -189,11 +198,14 @@ export default function AdminSettingsPage() {
           ocrTargetWavelength,
           ocrAlertWavelengths,
           ocrMinPower,
-          ocrMaxPower
+          ocrMaxPower,
+          groqApiKey,
+          groqModel,
+          groqPrompt
         })
       });
       if (res.ok) {
-        alert("Ajustes de OCR y Medición de Potencia guardados correctamente.");
+        alert("Ajustes de Groq Vision y Medición de Potencia guardados correctamente.");
       } else {
         alert("Error al guardar los ajustes de OCR.");
       }
@@ -556,14 +568,14 @@ export default function AdminSettingsPage() {
           </form>
         </div>
 
-        {/* 3. RECONOCIMIENTO OCR DE MEDICIÓN DE POTENCIA (LOCAL) */}
+        {/* 3. RECONOCIMIENTO DE MEDICIÓN DE POTENCIA CON GROQ VISION (IA) */}
         <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
             <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#10b981" }}>
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
-              Reconocimiento OCR de Medición de Potencia (Local)
+              Reconocimiento de Medición de Potencia (Groq Vision IA)
             </h2>
             <span style={{ fontSize: "0.75rem", padding: "3px 8px", borderRadius: "12px", background: ocrEnabled ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)", color: ocrEnabled ? "#10b981" : "#ef4444", fontWeight: 700 }}>
               {ocrEnabled ? "Activo" : "Desactivado"}
@@ -571,10 +583,10 @@ export default function AdminSettingsPage() {
           </div>
 
           <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "1.2rem" }}>
-            Analiza automáticamente las fotos subidas a <strong>&quot;Medición potencia&quot;</strong> en la Guía Fotográfica mediante OCR 100% local (sin salir de tu servidor). Extrae el valor de señal en dBm y supervisa que la longitud de onda coincida con la normativa.
+            Analiza automáticamente las fotos subidas a <strong>&quot;Medición potencia&quot;</strong> en la Guía Fotográfica mediante <strong>Groq Vision (Llama 3.2 Vision)</strong>. Reconoce con total precisión pantallas LCD de 7 segmentos con reflejos o inclinación, extrae la potencia (dBm) y supervisa que la longitud de onda sea la normativa.
           </p>
 
-          <form onSubmit={handleSaveOcr} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.2rem" }}>
+          <form onSubmit={handleSaveOcr} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.2rem" }}>
             {/* Activar / Desactivar */}
             <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: "10px", background: "var(--bg-color)", padding: "10px 14px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
               <input 
@@ -585,8 +597,71 @@ export default function AdminSettingsPage() {
                 style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "var(--primary-color)" }}
               />
               <label htmlFor="ocrEnabledToggle" style={{ fontSize: "0.9rem", fontWeight: 700, cursor: "pointer", color: "var(--text-color)" }}>
-                Habilitar extracción automática de potencia por OCR al subir fotos
+                Habilitar extracción automática de potencia mediante Groq Vision al subir fotos
               </label>
+            </div>
+
+            {/* Groq API Key */}
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                <label style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-color)" }}>
+                  Groq API Key:
+                </label>
+                <a 
+                  href="https://console.groq.com/keys" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  style={{ fontSize: "0.75rem", color: "var(--primary-color)", textDecoration: "none", fontWeight: 600 }}
+                >
+                  Obtener clave gratis en console.groq.com &rarr;
+                </a>
+              </div>
+              <div style={{ position: "relative" }}>
+                <input 
+                  type={showGroqKey ? "text" : "password"} 
+                  className="input-field" 
+                  value={groqApiKey} 
+                  onChange={(e) => setGroqApiKey(e.target.value)}
+                  placeholder="gsk_..."
+                  style={{ padding: "8px 40px 8px 12px", minHeight: "42px", fontSize: "0.9rem", background: "var(--card-bg)", color: "var(--text-color)", width: "100%" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowGroqKey(!showGroqKey)}
+                  style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "#64748b", cursor: "pointer", padding: "4px" }}
+                  title={showGroqKey ? "Ocultar clave" : "Mostrar clave"}
+                >
+                  {showGroqKey ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Si está vacía o Groq no responde, el sistema continúa sin interrumpir la subida.</span>
+            </div>
+
+            {/* Selección de Modelo Groq */}
+            <div>
+              <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, marginBottom: "4px", color: "var(--text-color)" }}>
+                Modelo Groq Vision:
+              </label>
+              <select 
+                className="input-field" 
+                value={groqModel} 
+                onChange={(e) => setGroqModel(e.target.value)}
+                style={{ padding: "8px 12px", minHeight: "42px", fontSize: "0.88rem", background: "var(--card-bg)", color: "var(--text-color)" }}
+              >
+                <option value="llama-3.2-11b-vision-preview">llama-3.2-11b-vision-preview (Recomendado - Ultrarrápido, 7.000 req/día)</option>
+                <option value="llama-3.2-90b-vision-preview">llama-3.2-90b-vision-preview (Alta capacidad, 1.000 req/día)</option>
+              </select>
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>El modelo 11B procesa en ~300ms y cubre de sobra el volumen diario.</span>
             </div>
 
             {/* Longitud de onda normativa */}
@@ -602,13 +677,13 @@ export default function AdminSettingsPage() {
                 placeholder="1490"
                 style={{ padding: "8px 12px", minHeight: "42px", fontSize: "0.9rem", background: "var(--card-bg)", color: "var(--text-color)" }}
               />
-              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Valor estándar esperado (ej. 1490 nm).</span>
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Valor estándar esperado (1490 nm).</span>
             </div>
 
-            {/* Longitudes de onda a vigilar / alertar */}
+            {/* Frecuencias a alertar */}
             <div>
               <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, marginBottom: "4px", color: "var(--text-color)" }}>
-                Frecuencias no normativas a alertar:
+                Frecuencias a alertar (disparan aviso al cerrar):
               </label>
               <input 
                 type="text" 
@@ -618,7 +693,7 @@ export default function AdminSettingsPage() {
                 placeholder="1310, 1550, 850, 1625"
                 style={{ padding: "8px 12px", minHeight: "42px", fontSize: "0.9rem", background: "var(--card-bg)", color: "var(--text-color)" }}
               />
-              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Separadas por comas. Dispararán aviso al cerrar orden.</span>
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Separadas por comas.</span>
             </div>
 
             {/* Rango de potencia min/max */}
@@ -645,17 +720,48 @@ export default function AdminSettingsPage() {
                   style={{ padding: "8px 10px", minHeight: "42px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", flex: 1 }}
                 />
               </div>
-              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Valores fuera de rango o &quot;Lo&quot; pasan a -70.00 dBm.</span>
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Lecturas de &quot;Lo&quot; pasan a -70.00 dBm.</span>
+            </div>
+
+            {/* Prompt de Análisis Editable */}
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                <label style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-color)" }}>
+                  Prompt de Instrucciones enviado a Groq Vision:
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setGroqPrompt(
+                    "Analiza la pantalla de este medidor de potencia óptica (OPM / Optical Power Meter). Extrae:\n1. El valor de potencia en dBm (un número negativo, ej. -18.75 o -70.00 si indica Lo / LO / L.O.). En fibra óptica las potencias siempre son negativas.\n2. La longitud de onda en nm (ej. 1490, 1310, 1550, 850, 1625).\nDevuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {\"power\": \"-XX.XX\", \"wavelength\": \"XXXX\"}"
+                  )}
+                  style={{ background: "transparent", border: "none", color: "var(--primary-color)", fontSize: "0.75rem", cursor: "pointer", textDecoration: "underline" }}
+                >
+                  Restablecer prompt por defecto
+                </button>
+              </div>
+              <textarea 
+                rows={4}
+                className="input-field"
+                value={groqPrompt}
+                onChange={(e) => setGroqPrompt(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", fontFamily: "monospace", resize: "vertical" }}
+              />
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Puedes ajustar las instrucciones para que el modelo identifique casos particulares de tus medidores.</span>
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
               <button 
                 type="submit" 
                 className="btn" 
-                style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "white", minHeight: "40px", padding: "6px 20px", fontWeight: 800, cursor: "pointer", border: "none", borderRadius: "8px", boxShadow: "0 2px 8px rgba(16,185,129,0.3)" }}
+                style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "white", minHeight: "42px", padding: "6px 20px", fontWeight: 800, cursor: "pointer", border: "none", borderRadius: "8px", boxShadow: "0 2px 8px rgba(16,185,129,0.3)", display: "inline-flex", alignItems: "center", gap: "8px" }}
                 disabled={savingOcr}
               >
-                {savingOcr ? "Guardando..." : "💾 Guardar Ajustes OCR Potencia"}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                  <polyline points="17 21 17 13 7 13 7 21" />
+                  <polyline points="7 3 7 8 15 8" />
+                </svg>
+                <span>{savingOcr ? "Guardando..." : "Guardar Ajustes Groq Vision"}</span>
               </button>
             </div>
           </form>
