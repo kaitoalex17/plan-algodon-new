@@ -189,14 +189,13 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {"power"
           {
             role: "user",
             content: [
-              { type: "text", text: finalPrompt },
+              { type: "text", text: finalPrompt + "\n\nResponde ÚNICAMENTE con el objeto JSON sin explicaciones ni markdown." },
               { type: "image_url", image_url: { url: dataUrl } }
             ]
           }
         ],
-        response_format: { type: "json_object" },
         temperature: 0.1,
-        max_tokens: 250
+        max_tokens: 500
       })
     });
 
@@ -218,10 +217,17 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {"power"
 
     let parsed: any = {};
     try {
-      parsed = JSON.parse(content);
+      const cleanContent = content.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+      parsed = JSON.parse(cleanContent);
     } catch (e) {
-      const match = content.match(/\{[\s\S]*\}/);
-      if (match) parsed = JSON.parse(match[0]);
+      const match = content.match(/\{[\s\S]*?\}/);
+      if (match) {
+        try {
+          parsed = JSON.parse(match[0]);
+        } catch (innerE) {
+          console.warn("[Groq Vision] Error al parsear JSON extraído:", match[0]);
+        }
+      }
     }
 
     // 3. Normalizar potencia (dBm)
