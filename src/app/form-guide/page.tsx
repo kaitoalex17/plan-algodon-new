@@ -171,11 +171,11 @@ function FormGuideContent() {
               setLlavesNoDatos(saved.llavesNoDatos || false);
 
               if (saved.splitters && saved.splitters.length > 0 && saved.splitters.some((s: any) => s.signal && s.signal.trim() !== "")) {
-                setSplitters(saved.splitters.map((s: any) => ({
+                setSplitters(saved.splitters.slice(0, 6).map((s: any) => ({
                   signal: (s.signal || "").replace(/^-+/, "").trim()
                 })));
               } else if (saved.ocrSplitters && saved.ocrSplitters.length > 0) {
-                setSplitters(saved.ocrSplitters.map((s: any) => ({
+                setSplitters(saved.ocrSplitters.filter((o: any) => o.divisor <= 6).map((s: any) => ({
                   signal: (s.rawNumber || s.power || "").replace(/^-+/, "").trim()
                 })));
               } else if (data.potenciaDbm) {
@@ -217,7 +217,10 @@ function FormGuideContent() {
   }
 
   // Splitter handlers
-  const addSplitter = () => setSplitters([...splitters, { signal: "" }]);
+  const addSplitter = () => {
+    if (splitters.length >= 6) return;
+    setSplitters([...splitters, { signal: "" }]);
+  };
   const removeSplitter = (index: number) => {
     if (splitters.length <= 1) return;
     setSplitters(splitters.filter((_, i) => i !== index));
@@ -1077,16 +1080,18 @@ function FormGuideContent() {
                   ))}
                 </div>
 
-                <button 
-                  type="button"
-                  onClick={addSplitter}
-                  style={{
-                    width: "100%", padding: "10px", borderRadius: "10px", border: "1px dashed var(--primary-color, rgba(59, 130, 246, 0.4))", background: "none",
-                    color: "var(--primary-color, #60a5fa)", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem", transition: "all 0.2s"
-                  }}
-                >
-                  ➕ {t.addSplitterBtn}
-                </button>
+                {splitters.length < 6 && (
+                  <button 
+                    type="button"
+                    onClick={addSplitter}
+                    style={{
+                      width: "100%", padding: "10px", borderRadius: "10px", border: "1px dashed var(--primary-color, rgba(59, 130, 246, 0.4))", background: "none",
+                      color: "var(--primary-color, #60a5fa)", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem", transition: "all 0.2s"
+                    }}
+                  >
+                    + {t.addSplitterBtn}
+                  </button>
+                )}
               </div>
             )}
 

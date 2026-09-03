@@ -204,19 +204,15 @@ export async function POST(req: Request) {
     let ocrResult = null;
     if (cleanFileName.toLowerCase().includes("potencia")) {
       try {
-        let divisorIndex = 1;
-        const indexMatch = cleanFileName.match(/potencia_(\d+)/i);
-        if (indexMatch && indexMatch[1]) {
-          divisorIndex = parseInt(indexMatch[1]);
-        } else {
-          const existingPotCount = await prisma.image.count({
-            where: {
-              ctoId,
-              url: { contains: "potencia", mode: "insensitive" }
-            }
-          });
-          divisorIndex = Math.max(1, existingPotCount);
-        }
+        // No leer prefijos del archivo para no confundir el número de la CTO con el divisor.
+        // Se determina el divisor contando cuántas fotos de potencia tiene la CTO (1, 2, 3, 4, 5, 6 máximo).
+        const existingPotCount = await prisma.image.count({
+          where: {
+            ctoId,
+            url: { contains: "potencia", mode: "insensitive" }
+          }
+        });
+        const divisorIndex = Math.min(6, Math.max(1, existingPotCount));
 
         const { processPowerMeterUploadOcr } = await import("@/lib/ocrPowerMeter");
         ocrResult = await processPowerMeterUploadOcr({

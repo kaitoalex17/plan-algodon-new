@@ -105,7 +105,10 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [cluster, setCluster] = useState("");
 
   const handleAddDrawerSplitter = () => {
-    setDrawerSplitters(prev => [...prev, { signal: "", isOcr: false }]);
+    setDrawerSplitters(prev => {
+      if (prev.length >= 6) return prev;
+      return [...prev, { signal: "", isOcr: false }];
+    });
   };
 
   const handleRemoveDrawerSplitter = (index: number) => {
@@ -572,11 +575,16 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           loadedSplitters = [{ signal: rawPot, isOcr: false }];
         }
 
-        const potenciaImgsCount = (data.images || []).filter((i: any) => 
+        const potenciaImgsCount = Math.min(6, (data.images || []).filter((i: any) => 
           (i.url || "").toLowerCase().includes("potencia")
-        ).length;
-        while (loadedSplitters.length < Math.max(1, potenciaImgsCount)) {
+        ).length);
+        while (loadedSplitters.length < Math.max(1, potenciaImgsCount) && loadedSplitters.length < 6) {
           loadedSplitters.push({ signal: "", isOcr: false });
+        }
+
+        // Limitar SIEMPRE a máximo 6 divisores
+        if (loadedSplitters.length > 6) {
+          loadedSplitters = loadedSplitters.slice(0, 6);
         }
 
         setDrawerSplitters(loadedSplitters);
@@ -861,8 +869,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       // Captura silenciosa y rápida de GPS en segundo plano
       const autoGps = extraData.location !== undefined ? extraData.location : (await getQuickGpsLocation());
 
-      // Formatear divisores y sincronizar con formDataJson y potenciaDbm
-      const formattedSplitters = drawerSplitters.map(s => {
+      // Formatear divisores y sincronizar con formDataJson y potenciaDbm (máximo 6)
+      const formattedSplitters = drawerSplitters.slice(0, 6).map(s => {
         const clean = s.signal.trim().replace(/^-+/, "");
         return { signal: clean ? `-${clean}` : "" };
       });
@@ -1691,13 +1699,15 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                         </svg>
                         Señal de Divisores (dBm)
                       </label>
-                      <button
-                        type="button"
-                        onClick={handleAddDrawerSplitter}
-                        style={{ background: "transparent", border: "1px solid var(--primary-color)", color: "var(--primary-color)", borderRadius: "6px", padding: "2px 8px", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
-                      >
-                        + Agregar divisor
-                      </button>
+                      {drawerSplitters.length < 6 && (
+                        <button
+                          type="button"
+                          onClick={handleAddDrawerSplitter}
+                          style={{ background: "transparent", border: "1px solid var(--primary-color)", color: "var(--primary-color)", borderRadius: "6px", padding: "2px 8px", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
+                        >
+                          + Agregar divisor
+                        </button>
+                      )}
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>

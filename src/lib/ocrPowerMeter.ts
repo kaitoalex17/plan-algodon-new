@@ -270,14 +270,18 @@ export async function processPowerMeterUploadOcr({
         } catch (e) {}
       }
 
-      // Estructura de divisores OCR
-      if (!Array.isArray(formData.ocrSplitters)) {
+      const safeDivisor = Math.min(6, Math.max(1, divisorIndex));
+
+      // Limitar y limpiar splitters existentes para que nunca superen 6
+      if (Array.isArray(formData.ocrSplitters)) {
+        formData.ocrSplitters = formData.ocrSplitters.filter((s: any) => s.divisor <= 6);
+      } else {
         formData.ocrSplitters = [];
       }
 
-      const existingIdx = formData.ocrSplitters.findIndex((s: any) => s.divisor === divisorIndex);
+      const existingIdx = formData.ocrSplitters.findIndex((s: any) => s.divisor === safeDivisor);
       const ocrEntry = {
-        divisor: divisorIndex,
+        divisor: safeDivisor,
         power: result.power,
         rawNumber: result.rawNumber,
         wavelength: result.wavelength || null,
@@ -291,16 +295,21 @@ export async function processPowerMeterUploadOcr({
         formData.ocrSplitters.push(ocrEntry);
       }
 
-      // Pre-rellenar splitters para el formulario si no existen o están vacíos
-      if (!Array.isArray(formData.splitters)) {
+      // Pre-rellenar splitters para el formulario (máximo 6)
+      if (Array.isArray(formData.splitters)) {
+        if (formData.splitters.length > 6) {
+          formData.splitters = formData.splitters.slice(0, 6);
+        }
+      } else {
         formData.splitters = [];
       }
-      while (formData.splitters.length < divisorIndex) {
+
+      while (formData.splitters.length < safeDivisor && formData.splitters.length < 6) {
         formData.splitters.push({ signal: "" });
       }
-      // Actualizar el valor del divisor si estaba vacío
-      if (!formData.splitters[divisorIndex - 1].signal || formData.splitters[divisorIndex - 1].signal === "") {
-        formData.splitters[divisorIndex - 1].signal = result.power;
+
+      if (formData.splitters[safeDivisor - 1]) {
+        formData.splitters[safeDivisor - 1].signal = result.power;
       }
 
       // Guardar advertencia de longitud de onda si no coincide con la normativa
