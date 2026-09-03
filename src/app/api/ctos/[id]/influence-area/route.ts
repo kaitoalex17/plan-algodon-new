@@ -135,17 +135,37 @@ JSON.stringify(housesFound.slice(0, 30)) + "\n\n" +
           body: JSON.stringify({
             model: groqModel,
             messages: [
+              { 
+                role: "system", 
+                content: "Eres un generador estricto de texto para órdenes de telecomunicaciones. NO pienses en voz alta, NO uses etiquetas <think>. Devuelve únicamente el resultado final formateado que comience directamente por 'Area de influencia :'." 
+              },
               { role: "user", content: prompt }
             ],
             temperature: 0.1,
-            max_tokens: 300
+            max_tokens: 1000
           })
         });
 
         if (groqRes.ok) {
           const groqData = await groqRes.json();
           const content = groqData.choices?.[0]?.message?.content || "";
-          finalText = content.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/[`\"\']/g, "").trim();
+          
+          // 1. Eliminar etiquetas <think>...</think> si están cerradas
+          let cleaned = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+          
+          // 2. Si el modelo cortó el texto dentro de un <think> no cerrado:
+          if (cleaned.includes("<think>")) {
+            // Si quedó un <think> abierto sin cerrar, retirar todo desde <think>
+            cleaned = cleaned.replace(/<think>[\s\S]*/gi, "").trim();
+          }
+
+          // 3. Buscar si el texto contiene la frase clave 'Area de influencia'
+          const matchArea = cleaned.match(/Area de influencia\s*:\s*[^\n\r]+/i) || content.match(/Area de influencia\s*:\s*[^\n\r]+/i);
+          if (matchArea) {
+            finalText = matchArea[0].trim();
+          } else if (cleaned) {
+            finalText = cleaned.replace(/[`\"\']/g, "").trim();
+          }
         }
       } catch (groqErr) {
         console.warn("[Influence Area] Fallo al consultar Groq:", groqErr);
