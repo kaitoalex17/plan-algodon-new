@@ -97,6 +97,7 @@ export async function POST(req: Request) {
     }
 
     const uploadedImages = [];
+    let ocrResult = null;
 
     for (const file of files) {
       const bytes = await file.arrayBuffer();
@@ -181,6 +182,30 @@ export async function POST(req: Request) {
       }
       
       uploadedImages.push(imageRecord || { url: imageUrl });
+
+      // 4. Reconocimiento automático OCR si la foto corresponde a Medición de Potencia
+      if (cleanFileName.toLowerCase().includes("potencia")) {
+        try {
+          const existingPotCount = await prisma.image.count({
+            where: {
+              ctoId,
+              url: { contains: "potencia", mode: "insensitive" }
+            }
+          });
+          const divisorIndex = Math.min(6, Math.max(1, existingPotCount));
+
+          const { processPowerMeterUploadOcr } = await import("@/lib/ocrPowerMeter");
+          ocrResult = await processPowerMeterUploadOcr({
+            filepath,
+            buffer: processedBuffer,
+            ctoId,
+            divisorIndex,
+            userId: (session?.user as any)?.id
+          });
+        } catch (ocrErr) {
+          console.warn("Fallo no bloqueante al procesar OCR de potencia:", ocrErr);
+        }
+      }
     }
 
     // Actualizar estado del CTO respecto a Drive
@@ -189,8 +214,6 @@ export async function POST(req: Request) {
       if (folderId && !driveError) syncStatus = "SYNCED";
       else if (driveError) syncStatus = "ERROR";
       
-      // If it was already SYNCED and this upload had an error, it becomes ERROR
-      // If it was ERROR and this upload succeeded, it becomes SYNCED
       await prisma.cTO.update({
         where: { id: ctoId },
         data: {
@@ -198,33 +221,6 @@ export async function POST(req: Request) {
           ...(driveFolderLink ? { driveFolderLink } : {})
         }
       });
-    }
-
-    // 4. Reconocimiento automático OCR si la foto corresponde a Medición de Potencia
-    let ocrResult = null;
-    if (cleanFileName.toLowerCase().includes("potencia")) {
-      try {
-        // No leer prefijos del archivo para no confundir el número de la CTO con el divisor.
-        // Se determina el divisor contando cuántas fotos de potencia tiene la CTO (1, 2, 3, 4, 5, 6 máximo).
-        const existingPotCount = await prisma.image.count({
-          where: {
-            ctoId,
-            url: { contains: "potencia", mode: "insensitive" }
-          }
-        });
-        const divisorIndex = Math.min(6, Math.max(1, existingPotCount));
-
-        const { processPowerMeterUploadOcr } = await import("@/lib/ocrPowerMeter");
-        ocrResult = await processPowerMeterUploadOcr({
-          filepath,
-          buffer: processedBuffer,
-          ctoId,
-          divisorIndex,
-          userId: (session?.user as any)?.id
-        });
-      } catch (ocrErr) {
-        console.warn("Fallo no bloqueante al procesar OCR de potencia:", ocrErr);
-      }
     }
 
     return NextResponse.json({ 

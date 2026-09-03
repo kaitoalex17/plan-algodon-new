@@ -215,18 +215,44 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {"power"
       return { success: false, error: "Respuesta vacía de Groq" };
     }
 
+    // 1. Retirar bloques de pensamiento <think>...</think> si el modelo los emitió
+    let cleanedText = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
     let parsed: any = {};
     try {
-      const cleanContent = content.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-      parsed = JSON.parse(cleanContent);
+      const jsonCandidate = cleanedText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+      parsed = JSON.parse(jsonCandidate);
     } catch (e) {
-      const match = content.match(/\{[\s\S]*?\}/);
-      if (match) {
-        try {
-          parsed = JSON.parse(match[0]);
-        } catch (innerE) {
-          console.warn("[Groq Vision] Error al parsear JSON extraído:", match[0]);
+      // Buscar el último bloque {...} que suele ser el JSON de respuesta
+      const matches = cleanedText.match(/\{[\s\S]*?\}/g) || content.match(/\{[\s\S]*?\}/g);
+      if (matches && matches.length > 0) {
+        for (let i = matches.length - 1; i >= 0; i--) {
+          try {
+            parsed = JSON.parse(matches[i]);
+            if (parsed.power !== undefined || parsed.signal !== undefined || parsed.wavelength !== undefined) {
+              break;
+            }
+          } catch (innerE) {}
         }
+      }
+    }
+
+    // 2. Fallback de extracción por regex directa si el JSON no se formó pero el modelo lo razonó en el texto
+    if (!parsed.power && !parsed.signal) {
+      // Buscar patrones como "-18.2 dBm" o "power: -18.2" o "18.2 dBm"
+      const powerMatch = (cleanedText || content).match(/(?:power|potencia|signal)?[^\d-]*(-?\d{1,2}[.,]\d{1,2})\s*(?:dBm|dbm)/i) ||
+                         (cleanedText || content).match(/(-[1-7]\d[.,]\d{1,2})\s*(?:dBm)?/i);
+      if (powerMatch) {
+        parsed.power = powerMatch[1];
+      } else if (/\b(?:Lo|LO|L\.O\.)\b/i.test(cleanedText || content)) {
+        parsed.power = "-70.00";
+      }
+    }
+
+    if (!parsed.wavelength && !parsed.longitud_onda) {
+      const wlMatch = (cleanedText || content).match(/\b(1490|1310|1550|850|1625)\s*(?:nm)?\b/i);
+      if (wlMatch) {
+        parsed.wavelength = wlMatch[1];
       }
     }
 
