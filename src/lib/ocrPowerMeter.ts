@@ -256,7 +256,7 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {"power"
       }
     }
 
-    // 3. Normalizar potencia (dBm)
+    // 3. Normalizar potencia (dBm) SIEMPRE en formato estricto -XX.XX (con 2 decimales)
     let detectedPower: string | undefined;
     let detectedRawNumber: string | undefined;
     let isLo = false;
@@ -270,6 +270,7 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {"power"
       const cleanNumStr = rawPowerStr.replace(/[^-0-9.,]/g, "").replace(",", ".");
       const absVal = Math.abs(parseFloat(cleanNumStr));
       if (!isNaN(absVal) && absVal >= 10.0 && absVal <= 80.0) {
+        // Formato SIEMPRE con 2 decimales (ej. -18.20 o -17.98)
         detectedRawNumber = absVal.toFixed(2);
         detectedPower = `-${detectedRawNumber}`;
       }
