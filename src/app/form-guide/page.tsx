@@ -170,8 +170,17 @@ function FormGuideContent() {
               setLlavesTelefono(saved.llavesTelefono || "");
               setLlavesNoDatos(saved.llavesNoDatos || false);
 
-              if (saved.splitters && saved.splitters.length > 0) {
-                setSplitters(saved.splitters);
+              if (saved.splitters && saved.splitters.length > 0 && saved.splitters.some((s: any) => s.signal && s.signal.trim() !== "")) {
+                setSplitters(saved.splitters.map((s: any) => ({
+                  signal: (s.signal || "").replace(/^-+/, "").trim()
+                })));
+              } else if (saved.ocrSplitters && saved.ocrSplitters.length > 0) {
+                setSplitters(saved.ocrSplitters.map((s: any) => ({
+                  signal: (s.rawNumber || s.power || "").replace(/^-+/, "").trim()
+                })));
+              } else if (data.potenciaDbm) {
+                const rawP = String(data.potenciaDbm).replace(/^-+/, "").trim();
+                if (rawP) setSplitters([{ signal: rawP }]);
               }
 
               setRequiereAntala(saved.requiereAntala);
@@ -190,6 +199,9 @@ function FormGuideContent() {
             } catch (e) {
               console.error("Error parsing saved data:", e);
             }
+          } else if (data.potenciaDbm) {
+            const rawP = String(data.potenciaDbm).replace(/^-+/, "").trim();
+            if (rawP) setSplitters([{ signal: rawP }]);
           }
         })
         .catch(err => console.error("Error loading CTO:", err));
@@ -212,7 +224,7 @@ function FormGuideContent() {
   };
   const updateSplitterSignal = (index: number, val: string) => {
     const updated = [...splitters];
-    updated[index].signal = val.replace(",", ".");
+    updated[index].signal = val.replace(/^-+/, "").replace(",", ".");
     setSplitters(updated);
   };
 

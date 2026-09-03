@@ -19,6 +19,14 @@ export default function AdminSettingsPage() {
   const [sftpPort, setSftpPort] = useState("2222");
   const [savingSftp, setSavingSftp] = useState(false);
 
+  // Settings State: OCR Medición de Potencia
+  const [ocrEnabled, setOcrEnabled] = useState(true);
+  const [ocrTargetWavelength, setOcrTargetWavelength] = useState("1490");
+  const [ocrAlertWavelengths, setOcrAlertWavelengths] = useState("1310, 1550, 850, 1625");
+  const [ocrMinPower, setOcrMinPower] = useState("-11.00");
+  const [ocrMaxPower, setOcrMaxPower] = useState("-70.00");
+  const [savingOcr, setSavingOcr] = useState(false);
+
   // Settings State: Mail
   const [smtpHost, setSmtpHost] = useState("");
   const [smtpPort, setSmtpPort] = useState("587");
@@ -80,6 +88,11 @@ export default function AdminSettingsPage() {
         if (settings.sftpUser) setSftpUser(settings.sftpUser);
         if (settings.sftpPassword) setSftpPassword(settings.sftpPassword);
         if (settings.sftpPort) setSftpPort(settings.sftpPort);
+        if (settings.ocrEnabled !== undefined) setOcrEnabled(settings.ocrEnabled !== "false");
+        if (settings.ocrTargetWavelength) setOcrTargetWavelength(settings.ocrTargetWavelength);
+        if (settings.ocrAlertWavelengths) setOcrAlertWavelengths(settings.ocrAlertWavelengths);
+        if (settings.ocrMinPower) setOcrMinPower(settings.ocrMinPower);
+        if (settings.ocrMaxPower) setOcrMaxPower(settings.ocrMaxPower);
       }
 
       if (resMail.ok) {
@@ -161,6 +174,34 @@ export default function AdminSettingsPage() {
       alert("Error en el servidor al guardar ajustes de SFTP.");
     } finally {
       setSavingSftp(false);
+    }
+  };
+
+  const handleSaveOcr = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingOcr(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ocrEnabled: String(ocrEnabled),
+          ocrTargetWavelength,
+          ocrAlertWavelengths,
+          ocrMinPower,
+          ocrMaxPower
+        })
+      });
+      if (res.ok) {
+        alert("Ajustes de OCR y Medición de Potencia guardados correctamente.");
+      } else {
+        alert("Error al guardar los ajustes de OCR.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error en el servidor al guardar OCR.");
+    } finally {
+      setSavingOcr(false);
     }
   };
 
@@ -515,7 +556,112 @@ export default function AdminSettingsPage() {
           </form>
         </div>
 
-        {/* 3. ENLACE PÚBLICO DE ACCESO DIRECTO */}
+        {/* 3. RECONOCIMIENTO OCR DE MEDICIÓN DE POTENCIA (LOCAL) */}
+        <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#10b981" }}>
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+              Reconocimiento OCR de Medición de Potencia (Local)
+            </h2>
+            <span style={{ fontSize: "0.75rem", padding: "3px 8px", borderRadius: "12px", background: ocrEnabled ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)", color: ocrEnabled ? "#10b981" : "#ef4444", fontWeight: 700 }}>
+              {ocrEnabled ? "Activo" : "Desactivado"}
+            </span>
+          </div>
+
+          <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "1.2rem" }}>
+            Analiza automáticamente las fotos subidas a <strong>&quot;Medición potencia&quot;</strong> en la Guía Fotográfica mediante OCR 100% local (sin salir de tu servidor). Extrae el valor de señal en dBm y supervisa que la longitud de onda coincida con la normativa.
+          </p>
+
+          <form onSubmit={handleSaveOcr} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.2rem" }}>
+            {/* Activar / Desactivar */}
+            <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: "10px", background: "var(--bg-color)", padding: "10px 14px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+              <input 
+                type="checkbox" 
+                id="ocrEnabledToggle"
+                checked={ocrEnabled} 
+                onChange={(e) => setOcrEnabled(e.target.checked)} 
+                style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "var(--primary-color)" }}
+              />
+              <label htmlFor="ocrEnabledToggle" style={{ fontSize: "0.9rem", fontWeight: 700, cursor: "pointer", color: "var(--text-color)" }}>
+                Habilitar extracción automática de potencia por OCR al subir fotos
+              </label>
+            </div>
+
+            {/* Longitud de onda normativa */}
+            <div>
+              <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, marginBottom: "4px", color: "var(--text-color)" }}>
+                Longitud de Onda Normativa (nm):
+              </label>
+              <input 
+                type="text" 
+                className="input-field" 
+                value={ocrTargetWavelength} 
+                onChange={(e) => setOcrTargetWavelength(e.target.value)}
+                placeholder="1490"
+                style={{ padding: "8px 12px", minHeight: "42px", fontSize: "0.9rem", background: "var(--card-bg)", color: "var(--text-color)" }}
+              />
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Valor estándar esperado (ej. 1490 nm).</span>
+            </div>
+
+            {/* Longitudes de onda a vigilar / alertar */}
+            <div>
+              <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, marginBottom: "4px", color: "var(--text-color)" }}>
+                Frecuencias no normativas a alertar:
+              </label>
+              <input 
+                type="text" 
+                className="input-field" 
+                value={ocrAlertWavelengths} 
+                onChange={(e) => setOcrAlertWavelengths(e.target.value)}
+                placeholder="1310, 1550, 850, 1625"
+                style={{ padding: "8px 12px", minHeight: "42px", fontSize: "0.9rem", background: "var(--card-bg)", color: "var(--text-color)" }}
+              />
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Separadas por comas. Dispararán aviso al cerrar orden.</span>
+            </div>
+
+            {/* Rango de potencia min/max */}
+            <div>
+              <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, marginBottom: "4px", color: "var(--text-color)" }}>
+                Rango Potencia Aceptada (dBm):
+              </label>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={ocrMinPower} 
+                  onChange={(e) => setOcrMinPower(e.target.value)}
+                  placeholder="-11.00"
+                  style={{ padding: "8px 10px", minHeight: "42px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", flex: 1 }}
+                />
+                <span style={{ color: "#64748b", fontSize: "0.85rem" }}>hasta</span>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={ocrMaxPower} 
+                  onChange={(e) => setOcrMaxPower(e.target.value)}
+                  placeholder="-70.00"
+                  style={{ padding: "8px 10px", minHeight: "42px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", flex: 1 }}
+                />
+              </div>
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Valores fuera de rango o &quot;Lo&quot; pasan a -70.00 dBm.</span>
+            </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <button 
+                type="submit" 
+                className="btn" 
+                style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "white", minHeight: "40px", padding: "6px 20px", fontWeight: 800, cursor: "pointer", border: "none", borderRadius: "8px", boxShadow: "0 2px 8px rgba(16,185,129,0.3)" }}
+                disabled={savingOcr}
+              >
+                {savingOcr ? "Guardando..." : "💾 Guardar Ajustes OCR Potencia"}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* 4. ENLACE PÚBLICO DE ACCESO DIRECTO */}
         <div className="glass-panel" style={{ padding: "1.5rem", background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "12px" }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "8px" }}>
             🔗 Enlace Público de Acceso Directo

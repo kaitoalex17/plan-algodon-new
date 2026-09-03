@@ -23,6 +23,11 @@ export async function GET() {
       sftpUser: settingsMap.sftpUser || process.env.SFTP_USER || "sftpuser",
       sftpPassword: settingsMap.sftpPassword || process.env.SFTP_PASSWORD || "sftppassword123",
       sftpPort: settingsMap.sftpPort || process.env.SFTP_PORT || "2222",
+      ocrEnabled: settingsMap.ocrEnabled || "true",
+      ocrTargetWavelength: settingsMap.ocrTargetWavelength || "1490",
+      ocrAlertWavelengths: settingsMap.ocrAlertWavelengths || "1310, 1550, 850, 1625",
+      ocrMinPower: settingsMap.ocrMinPower || "-11.00",
+      ocrMaxPower: settingsMap.ocrMaxPower || "-70.00",
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -37,7 +42,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { imageQuality, imageMaxWidth, sftpUser, sftpPassword, sftpPort } = body;
+    const { 
+      imageQuality, imageMaxWidth, sftpUser, sftpPassword, sftpPort,
+      ocrEnabled, ocrTargetWavelength, ocrAlertWavelengths, ocrMinPower, ocrMaxPower
+    } = body;
 
     if (imageQuality !== undefined) {
       await prisma.setting.upsert({
@@ -76,6 +84,47 @@ export async function POST(req: NextRequest) {
         where: { key: "sftpPort" },
         update: { value: String(sftpPort) },
         create: { key: "sftpPort", value: String(sftpPort) }
+      });
+    }
+
+    // Configuración OCR de Medición de Potencia
+    if (ocrEnabled !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: "ocrEnabled" },
+        update: { value: String(ocrEnabled) },
+        create: { key: "ocrEnabled", value: String(ocrEnabled) }
+      });
+    }
+
+    if (ocrTargetWavelength !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: "ocrTargetWavelength" },
+        update: { value: String(ocrTargetWavelength).trim() },
+        create: { key: "ocrTargetWavelength", value: String(ocrTargetWavelength).trim() }
+      });
+    }
+
+    if (ocrAlertWavelengths !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: "ocrAlertWavelengths" },
+        update: { value: String(ocrAlertWavelengths).trim() },
+        create: { key: "ocrAlertWavelengths", value: String(ocrAlertWavelengths).trim() }
+      });
+    }
+
+    if (ocrMinPower !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: "ocrMinPower" },
+        update: { value: String(ocrMinPower).trim() },
+        create: { key: "ocrMinPower", value: String(ocrMinPower).trim() }
+      });
+    }
+
+    if (ocrMaxPower !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: "ocrMaxPower" },
+        update: { value: String(ocrMaxPower).trim() },
+        create: { key: "ocrMaxPower", value: String(ocrMaxPower).trim() }
       });
     }
 

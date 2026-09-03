@@ -220,11 +220,44 @@ export async function POST(req: Request) {
       console.error("Error al limpiar fragmentos temporales:", cleanError);
     }
 
+    // 4. Reconocimiento automático OCR si la foto corresponde a Medición de Potencia
+    let ocrResult = null;
+    if (cleanFileName.toLowerCase().includes("potencia")) {
+      try {
+        let divisorIndex = 1;
+        const indexMatch = cleanFileName.match(/potencia_(\d+)/i);
+        if (indexMatch && indexMatch[1]) {
+          divisorIndex = parseInt(indexMatch[1]);
+        } else {
+          const existingPotCount = await prisma.image.count({
+            where: {
+              ctoId,
+              url: { contains: "potencia", mode: "insensitive" }
+            }
+          });
+          divisorIndex = Math.max(1, existingPotCount);
+        }
+
+        const { processPowerMeterUploadOcr } = await import("@/lib/ocrPowerMeter");
+        ocrResult = await processPowerMeterUploadOcr({
+          filepath,
+          buffer: processedBuffer,
+          ctoId,
+          divisorIndex,
+          userId: (session?.user as any)?.id
+        });
+      } catch (ocrErr) {
+        console.warn("Fallo no bloqueante al procesar OCR de potencia en chunks:", ocrErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       status: "completed",
-      image: imageRecord || { url: imageUrl },
-      driveMissingFolder: driveError
+      imageUrl,
+      image: imageRecord,
+      driveMissingFolder: driveError,
+      ocrResult
     });
   } catch (error: any) {
     console.error("Error en la subida fragmentada:", error);

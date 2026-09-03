@@ -95,10 +95,32 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
   const [puertosTotal, setPuertosTotal] = useState<number | string>(8);
   const [puertosOcupados, setPuertosOcupados] = useState<number | string>(0);
   const [potenciaDbm, setPotenciaDbm] = useState<number | string>("");
+  // Estado para gestión dinámica de divisores (rellenados por OCR o manual)
+  const [drawerSplitters, setDrawerSplitters] = useState<{ signal: string; isOcr?: boolean; ocrWl?: string }[]>([
+    { signal: "" }
+  ]);
   const [cierreSeguridad, setCierreSeguridad] = useState(true);
   const [etiquetadoCorrecto, setEtiquetadoCorrecto] = useState(true);
   const [zona, setZona] = useState("");
   const [cluster, setCluster] = useState("");
+
+  const handleAddDrawerSplitter = () => {
+    setDrawerSplitters(prev => [...prev, { signal: "", isOcr: false }]);
+  };
+
+  const handleRemoveDrawerSplitter = (index: number) => {
+    if (drawerSplitters.length <= 1) return;
+    setDrawerSplitters(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateDrawerSplitter = (index: number, val: string) => {
+    const cleanVal = val.replace(/^-+/, "").replace(",", ".");
+    setDrawerSplitters(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], signal: cleanVal };
+      return copy;
+    });
+  };
   
   const [loading, setLoading] = useState(false);
   const [copiedCtoNum, setCopiedCtoNum] = useState(false);
@@ -519,6 +541,46 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
         setPuertosTotal(data.puertosTotal !== null ? data.puertosTotal : 8);
         setPuertosOcupados(data.puertosOcupados !== null ? data.puertosOcupados : 0);
         setPotenciaDbm(data.potenciaDbm !== null ? data.potenciaDbm : "");
+
+        // Cargar divisores desde formDataJson o potenciaDbm
+        let loadedSplitters: { signal: string; isOcr?: boolean; ocrWl?: string }[] = [];
+        if (data.formDataJson) {
+          try {
+            const parsedForm = JSON.parse(data.formDataJson);
+            if (Array.isArray(parsedForm.splitters) && parsedForm.splitters.length > 0 && parsedForm.splitters.some((s: any) => s.signal)) {
+              loadedSplitters = parsedForm.splitters.map((s: any, idx: number) => {
+                const ocrMatch = parsedForm.ocrSplitters?.find((o: any) => o.divisor === idx + 1);
+                const rawSignal = (s.signal || "").replace(/^-+/, "").trim();
+                return {
+                  signal: rawSignal,
+                  isOcr: Boolean(ocrMatch),
+                  ocrWl: ocrMatch?.wavelength
+                };
+              });
+            } else if (Array.isArray(parsedForm.ocrSplitters) && parsedForm.ocrSplitters.length > 0) {
+              loadedSplitters = parsedForm.ocrSplitters.map((o: any) => ({
+                signal: (o.rawNumber || o.power || "").replace(/^-+/, "").trim(),
+                isOcr: true,
+                ocrWl: o.wavelength
+              }));
+            }
+          } catch (e) {}
+        }
+
+        if (loadedSplitters.length === 0) {
+          const rawPot = String(data.potenciaDbm || "").replace(/^-+/, "").trim();
+          loadedSplitters = [{ signal: rawPot, isOcr: false }];
+        }
+
+        const potenciaImgsCount = (data.images || []).filter((i: any) => 
+          (i.url || "").toLowerCase().includes("potencia")
+        ).length;
+        while (loadedSplitters.length < Math.max(1, potenciaImgsCount)) {
+          loadedSplitters.push({ signal: "", isOcr: false });
+        }
+
+        setDrawerSplitters(loadedSplitters);
+
         setCierreSeguridad(data.cierreSeguridad !== null ? data.cierreSeguridad : true);
         setEtiquetadoCorrecto(data.etiquetadoCorrecto !== null ? data.etiquetadoCorrecto : true);
         setHasFormulario(data.hasFormulario || false);
@@ -799,6 +861,23 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       // Captura silenciosa y rápida de GPS en segundo plano
       const autoGps = extraData.location !== undefined ? extraData.location : (await getQuickGpsLocation());
 
+      // Formatear divisores y sincronizar con formDataJson y potenciaDbm
+      const formattedSplitters = drawerSplitters.map(s => {
+        const clean = s.signal.trim().replace(/^-+/, "");
+        return { signal: clean ? `-${clean}` : "" };
+      });
+      const firstValidSignal = formattedSplitters.find(s => s.signal !== "")?.signal;
+      const primaryPotencia = firstValidSignal
+        ? parseFloat(firstValidSignal)
+        : (potenciaDbm !== "" ? parseFloat(String(potenciaDbm)) : null);
+
+      let mergedFormDataJson = extraData.formDataJson !== undefined ? extraData.formDataJson : details?.formDataJson;
+      try {
+        const prevForm = mergedFormDataJson ? JSON.parse(mergedFormDataJson) : {};
+        prevForm.splitters = formattedSplitters.length > 0 ? formattedSplitters : [{ signal: "" }];
+        mergedFormDataJson = JSON.stringify(prevForm);
+      } catch (e) {}
+
       const res = await fetch(`/api/ctos/${cto.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -813,7 +892,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
           location: autoGps,
           puertosTotal: puertosTotal !== "" ? parseInt(String(puertosTotal)) : null,
           puertosOcupados: puertosOcupados !== "" ? parseInt(String(puertosOcupados)) : null,
-          potenciaDbm: potenciaDbm !== "" ? parseFloat(String(potenciaDbm)) : null,
+          potenciaDbm: primaryPotencia,
+          formDataJson: mergedFormDataJson,
           cierreSeguridad: true,
           etiquetadoCorrecto: true,
           zona: zona || null,
@@ -875,6 +955,25 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (status === "CORRECTO") {
+      let ocrWlMismatch: any = null;
+      if (details?.formDataJson) {
+        try {
+          const parsed = JSON.parse(details.formDataJson);
+          if (parsed.ocrWavelengthMismatch) {
+            ocrWlMismatch = parsed.ocrWavelengthMismatch;
+          }
+        } catch (e) {}
+      }
+      const imgs = details?.images || [];
+      const hasPot = imgs.some((i: any) => (i.url || "").toLowerCase().includes("potencia"));
+      if (ocrWlMismatch && hasPot) {
+        const confirmProceed = confirm(
+          `⚠️ AVISO DE NORMATIVA:\n\nLa longitud de onda detectada en la medición de potencia (${ocrWlMismatch.detected} nm) es DISTINTA a la normativa (${ocrWlMismatch.expected || "1490"} nm).\n\nPor favor, revisa la imagen de potencia antes de guardar como CORRECTO.\n\n¿Deseas continuar y guardar de todas formas?`
+        );
+        if (!confirmProceed) return;
+      }
+    }
     await saveCto(status, assignedToId);
   };
 
@@ -912,6 +1011,24 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
     let auditLogAction = `Auditada y cerrada como CORRECTO por ${auditorName}`;
     if (missingPhotos.length > 0) {
       auditLogAction = `⚠️ Auditada con FOTOS FALTANTES (${missingPhotos.join(", ")}) por ${auditorName}`;
+    }
+
+    // Comprobar si OCR detectó una frecuencia/longitud de onda distinta a 1490 nm
+    let ocrWlMismatch: any = null;
+    if (details?.formDataJson) {
+      try {
+        const parsed = JSON.parse(details.formDataJson);
+        if (parsed.ocrWavelengthMismatch) {
+          ocrWlMismatch = parsed.ocrWavelengthMismatch;
+        }
+      } catch (e) {}
+    }
+
+    if (ocrWlMismatch && hasPot) {
+      const confirmProceed = confirm(
+        `⚠️ AVISO DE NORMATIVA:\n\nLa longitud de onda detectada en la medición de potencia (${ocrWlMismatch.detected} nm) es DISTINTA a la normativa (${ocrWlMismatch.expected || "1490"} nm).\n\nPor favor, revisa la imagen de potencia antes de dar por cerrada la orden.\n\n¿Deseas confirmar el cierre de todas formas?`
+      );
+      if (!confirmProceed) return;
     }
 
     const gpsLocation = await getQuickGpsLocation();
@@ -1565,40 +1682,62 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
               {/* Nuevos Datos de Fibra (Bajo botón i) */}
               {showFiberDetails && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "1rem", background: "var(--bg-color)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
-                    <div>
-                      <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Totales</label>
-                      <input 
-                        type="number" 
-                        className="input-field" 
-                        value={puertosTotal} 
-                        onChange={e => setPuertosTotal(e.target.value)}
-                        placeholder="16"
-                        style={{ padding: "6px 10px", minHeight: "38px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
-                      />
+                  {/* Divisores y Señal de Potencia (OCR / Entrada sin signo menos) */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", background: "var(--card-bg)", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-color)", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                        </svg>
+                        Señal de Divisores (dBm)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAddDrawerSplitter}
+                        style={{ background: "transparent", border: "1px solid var(--primary-color)", color: "var(--primary-color)", borderRadius: "6px", padding: "2px 8px", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
+                      >
+                        + Agregar divisor
+                      </button>
                     </div>
-                    <div>
-                      <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>P. Ocupados</label>
-                      <input 
-                        type="number" 
-                        className="input-field" 
-                        value={puertosOcupados} 
-                        onChange={e => setPuertosOcupados(e.target.value)}
-                        placeholder="0"
-                        style={{ padding: "6px 10px", minHeight: "38px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-color)" }}>Potencia (dBm)</label>
-                      <input 
-                        type="number" 
-                        step="any"
-                        className="input-field" 
-                        value={potenciaDbm} 
-                        onChange={e => setPotenciaDbm(e.target.value)}
-                        placeholder="-19.5"
-                        style={{ padding: "6px 10px", minHeight: "38px", fontSize: "0.85rem", background: "var(--card-bg)", color: "var(--text-color)", border: "1.5px solid var(--border-color)" }}
-                      />
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {drawerSplitters.map((s, sIdx) => (
+                        <div key={sIdx} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "0.8rem", minWidth: "68px", fontWeight: 700, color: "#94a3b8" }}>
+                            Divisor {sIdx + 1}:
+                          </span>
+                          <div style={{ position: "relative", flex: 1 }}>
+                            <span style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontWeight: 700, fontSize: "0.9rem" }}>-</span>
+                            <input 
+                              type="text" 
+                              inputMode="decimal"
+                              className="input-field" 
+                              value={s.signal} 
+                              onChange={e => handleUpdateDrawerSplitter(sIdx, e.target.value)}
+                              placeholder="19.50"
+                              style={{ padding: "6px 10px 6px 22px", minHeight: "36px", fontSize: "0.85rem", background: "var(--bg-color)", color: "var(--text-color)", border: "1.5px solid var(--border-color)", width: "100%" }}
+                            />
+                          </div>
+                          {s.isOcr && (
+                            <span style={{ fontSize: "0.68rem", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "3px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                              OCR
+                            </span>
+                          )}
+                          {drawerSplitters.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDrawerSplitter(sIdx)}
+                              style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                              title="Eliminar divisor"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
 
