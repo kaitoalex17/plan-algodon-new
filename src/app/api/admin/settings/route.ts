@@ -29,7 +29,7 @@ export async function GET() {
       ocrMinPower: settingsMap.ocrMinPower || "-11.00",
       ocrMaxPower: settingsMap.ocrMaxPower || "-70.00",
       groqApiKey: settingsMap.groqApiKey || "",
-      groqModel: settingsMap.groqModel || "llama-3.2-11b-vision-preview",
+      groqModel: (settingsMap.groqModel && !settingsMap.groqModel.includes("llama-3.2")) ? settingsMap.groqModel : "qwen/qwen3.6-27b",
       groqPrompt: settingsMap.groqPrompt || "Analiza la pantalla de este medidor de potencia óptica (OPM / Optical Power Meter). Extrae:\n1. El valor de potencia en dBm (un número negativo, ej. -18.75 o -70.00 si indica Lo / LO / L.O.). En fibra óptica las potencias siempre son negativas.\n2. La longitud de onda en nm (ej. 1490, 1310, 1550, 850, 1625).\nDevuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {\"power\": \"-XX.XX\", \"wavelength\": \"XXXX\"}",
     });
   } catch (error: any) {

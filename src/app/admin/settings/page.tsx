@@ -26,7 +26,7 @@ export default function AdminSettingsPage() {
   const [ocrMinPower, setOcrMinPower] = useState("-11.00");
   const [ocrMaxPower, setOcrMaxPower] = useState("-70.00");
   const [groqApiKey, setGroqApiKey] = useState("");
-  const [groqModel, setGroqModel] = useState("llama-3.2-11b-vision-preview");
+  const [groqModel, setGroqModel] = useState("qwen/qwen3.6-27b");
   const [groqPrompt, setGroqPrompt] = useState(
     "Analiza la pantalla de este medidor de potencia óptica (OPM / Optical Power Meter). Extrae:\n1. El valor de potencia en dBm (un número negativo, ej. -18.75 o -70.00 si indica Lo / LO / L.O.). En fibra óptica las potencias siempre son negativas.\n2. La longitud de onda en nm (ej. 1490, 1310, 1550, 850, 1625).\nDevuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {\"power\": \"-XX.XX\", \"wavelength\": \"XXXX\"}"
   );
@@ -658,10 +658,10 @@ export default function AdminSettingsPage() {
                 onChange={(e) => setGroqModel(e.target.value)}
                 style={{ padding: "8px 12px", minHeight: "42px", fontSize: "0.88rem", background: "var(--card-bg)", color: "var(--text-color)" }}
               >
-                <option value="llama-3.2-11b-vision-preview">llama-3.2-11b-vision-preview (Recomendado - Ultrarrápido, 7.000 req/día)</option>
-                <option value="llama-3.2-90b-vision-preview">llama-3.2-90b-vision-preview (Alta capacidad, 1.000 req/día)</option>
+                <option value="qwen/qwen3.6-27b">qwen/qwen3.6-27b (Recomendado - 500 T/s, Multimodal Visión 20MB)</option>
+                <option value="qwen/qwen3.8-27b">qwen/qwen3.8-27b (450 T/s, Multimodal Visión 20MB)</option>
               </select>
-              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>El modelo 11B procesa en ~300ms y cubre de sobra el volumen diario.</span>
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Modelos multimodales activos en Groq para análisis visual y OCR de alta resolución.</span>
             </div>
 
             {/* Longitud de onda normativa */}

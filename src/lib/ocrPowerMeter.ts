@@ -165,7 +165,10 @@ export async function recognizeWithGroqVision(
 Devuelve EXCLUSIVAMENTE un objeto JSON válido con este formato exacto: {"power": "-XX.XX", "wavelength": "XXXX"}`;
 
   const finalPrompt = (config.prompt && config.prompt.trim()) ? config.prompt.trim() : defaultPrompt;
-  const model = config.model || "llama-3.2-11b-vision-preview";
+  let model = config.model || "qwen/qwen3.6-27b";
+  if (model.includes("llama-3.2")) {
+    model = "qwen/qwen3.6-27b";
+  }
 
   console.log(`[Groq Vision] Procesando imagen con modelo: ${model}...`);
 
