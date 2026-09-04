@@ -15,7 +15,8 @@ type DamageKey =
   | "cerrar"
   | "sucia"
   | "enfrentadores"
-  | "splitterRoto";
+  | "splitterRoto"
+  | "otro";
 
 export default function FormGuidePage() {
   return (
@@ -58,8 +59,10 @@ function FormGuideContent() {
     cerrar: false,
     sucia: false,
     enfrentadores: false,
-    splitterRoto: false
+    splitterRoto: false,
+    otro: false
   });
+  const [danosOtroTexto, setDanosOtroTexto] = useState("");
 
   // Step 3: Llaves
   const [requiereLlaves, setRequiereLlaves] = useState<boolean | null>(null);
@@ -170,6 +173,7 @@ function FormGuideContent() {
                   updated[k] = true;
                 });
                 setDanosChecked(updated);
+                setDanosOtroTexto(saved.danosOtroTexto || "");
               } else if (saved.danos) {
                 setTieneDanos(false);
               }
@@ -242,6 +246,25 @@ function FormGuideContent() {
     const updated = [...splitters];
     updated[index].signal = val.replace(/^-+/, "").replace(",", ".");
     setSplitters(updated);
+  };
+
+  const formatSplitterSignalOnBlur = (index: number) => {
+    const updated = [...splitters];
+    const raw = updated[index]?.signal?.trim();
+    if (!raw) return;
+    
+    // Si es un valor especial de texto tipo Lo o LO
+    if (raw.toLowerCase() === "lo") {
+      updated[index].signal = "LO";
+      setSplitters(updated);
+      return;
+    }
+
+    const num = parseFloat(raw);
+    if (!isNaN(num)) {
+      updated[index].signal = num.toFixed(2);
+      setSplitters(updated);
+    }
   };
 
   // Calles list handlers
@@ -342,10 +365,10 @@ function FormGuideContent() {
       if (ubicacionPlantaNumero.trim()) {
         details.push(`Planta ${ubicacionPlantaNumero.trim()}`);
       }
-      if (details.length > 0) {
-        finalUbi += ` (${details.join(" - ")})`;
-      } else if (ubicacionOption === "Otros" && ubicacionOtros.trim()) {
+      if (ubicacionOption.toLowerCase().includes("otro") && ubicacionOtros.trim()) {
         finalUbi = ubicacionOtros.trim();
+      } else if (details.length > 0) {
+        finalUbi += ` (${details.join(" - ")})`;
       }
       part1Lines.push(`- ${ubiPrefix}: ${finalUbi}`);
     }
@@ -363,7 +386,13 @@ function FormGuideContent() {
         splitterRoto: "Tiene los divisores/splitter rotos"
       };
       (Object.keys(danosChecked) as DamageKey[]).forEach(k => {
-        if (danosChecked[k]) selectedDanos.push(keysMap[k]);
+        if (danosChecked[k]) {
+          if (k === "otro") {
+            selectedDanos.push(danosOtroTexto.trim() ? danosOtroTexto.trim() : (lang === "es" ? "Otro daño" : "Інше пошкодження"));
+          } else if (keysMap[k]) {
+            selectedDanos.push(keysMap[k]);
+          }
+        }
       });
       if (selectedDanos.length > 0) {
         part1Lines.push(`- ${danosPrefix}: ${selectedDanos.join(", ")}`);
@@ -409,10 +438,20 @@ function FormGuideContent() {
     }
 
     // 5. Señales de Splitters
+    const formatSignal = (val: string) => {
+      const clean = val.trim().replace(/^-+/, "").replace(",", ".");
+      if (!clean) return "";
+      if (clean.toLowerCase() === "lo") return "-LO";
+      const num = parseFloat(clean);
+      if (!isNaN(num)) {
+        return `-${num.toFixed(2)}`;
+      }
+      return `-${clean}`;
+    };
+
     const signalNumbers = splitters
-      .map(s => s.signal.trim())
-      .filter(s => s !== "")
-      .map(s => s.startsWith("-") ? s : `-${s}`);
+      .map(s => formatSignal(s.signal))
+      .filter(s => s !== "");
     const part2Text = signalNumbers.join("\n");
 
     // 6. Área de influencia
@@ -498,18 +537,21 @@ function FormGuideContent() {
       if (ubicacionPlantaNumero.trim()) {
         details.push(`Planta ${ubicacionPlantaNumero.trim()}`);
       }
-      if (details.length > 0) {
-        finalUbi += ` (${details.join(" - ")})`;
-      } else if (ubicacionOption === "Otros" && ubicacionOtros.trim()) {
+      if (ubicacionOption.toLowerCase().includes("otro") && ubicacionOtros.trim()) {
         finalUbi = ubicacionOtros.trim();
+      } else if (details.length > 0) {
+        finalUbi += ` (${details.join(" - ")})`;
       }
 
       const formattedSplitters = splitters.map(s => {
-        let signalStr = s.signal.trim();
-        if (signalStr && !signalStr.startsWith("-")) {
-          signalStr = "-" + signalStr;
+        const clean = s.signal.trim().replace(/^-+/, "").replace(",", ".");
+        if (!clean) return { signal: "" };
+        if (clean.toLowerCase() === "lo") return { signal: "-LO" };
+        const num = parseFloat(clean);
+        if (!isNaN(num)) {
+          return { signal: `-${num.toFixed(2)}` };
         }
-        return { signal: signalStr };
+        return { signal: `-${clean}` };
       });
 
       const payload = {
@@ -519,8 +561,9 @@ function FormGuideContent() {
         ubicacionPlantaTipo,
         ubicacionPlantaNumero,
         ubicacionOtros,
-        danos: tieneDanos ? selectedDanosKeys.map(k => t.danosOptions[k]) : [],
+        danos: tieneDanos ? selectedDanosKeys.map(k => (k === "otro" && danosOtroTexto.trim()) ? danosOtroTexto.trim() : t.danosOptions[k]) : [],
         danosKeys: selectedDanosKeys,
+        danosOtroTexto,
         requiereLlaves,
         llavesNombre,
         llavesTelefono,
@@ -593,8 +636,10 @@ function FormGuideContent() {
       cerrar: lang === "es" ? "No se puede cerrar" : "Не закривається",
       sucia: lang === "es" ? "Está sucia y/o llena de agua" : "Брудна та/або заповнена водою",
       enfrentadores: lang === "es" ? "Le faltan enfrentadores" : "Відсутні з'єднувачі/адаптери",
-      splitterRoto: lang === "es" ? "Tiene los divisores/splitter rotos" : "Має зламані дільники/спліттери"
+      splitterRoto: lang === "es" ? "Tiene los divisores/splitter rotos" : "Має зламані дільники/спліттери",
+      otro: lang === "es" ? "Otro (introducir manualmente)" : "Інше (ввести вручну)"
     },
+    danosOtroLabel: lang === "es" ? "Especifica otros daños:" : "Вкажіть інші пошкодження:",
 
     // Q3
     q3Title: lang === "es" ? "3. ¿Se requieren llaves?" : "3. Чи потрібні ключі?",
@@ -905,67 +950,72 @@ function FormGuideContent() {
                   })}
                 </div>
 
-                {ubicacionOption && ubiRequiresInput(ubicacionOption) && (
+                {ubicacionOption && (
                   <div style={{ marginTop: "20px", background: "rgba(15, 23, 42, 0.08)", padding: "16px", borderRadius: "14px", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", animation: "slideIn 0.25s ease-out", display: "flex", flexDirection: "column", gap: "12px" }}>
                     
-                    <div>
-                      <label style={{ display: "block", fontSize: "0.82rem", color: "#64748b", marginBottom: "8px", fontWeight: 700 }}>
-                        {lang === "es" ? "Tipo de instalación en planta (opcional):" : "Тип встановлення на поверсі (опціонально):"}
-                      </label>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                        {[
-                          { es: "de metal, grande", uk: "металевий, великий" },
-                          { es: "de madera", uk: "дерев'яний" },
-                          { es: "en vertical", uk: "вертикальний" },
-                          { es: "Sin especificar", uk: "Без уточнення" }
-                        ].map((tOpt, idx) => {
-                          const isSubSelected = ubicacionPlantaTipo === tOpt.es;
-                          return (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => setUbicacionPlantaTipo(tOpt.es)}
-                              style={{
-                                padding: "10px", borderRadius: "10px", 
-                                border: isSubSelected ? "2px solid var(--primary-color, #3b82f6)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-                                background: isSubSelected ? "var(--primary-color, #f97316)" : "var(--card-bg, #1e293b)",
-                                color: isSubSelected ? "#ffffff" : "var(--text-color, #f8fafc)",
-                                cursor: "pointer", fontSize: "0.8rem", fontWeight: 600
-                              }}
-                            >
-                              {lang === "es" ? tOpt.es : tOpt.uk}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={{ display: "block", fontSize: "0.82rem", color: "#64748b", marginBottom: "6px", fontWeight: 700 }}>
-                        {lang === "es" ? "Indica el número de la planta (opcional):" : "Вкажіть номер поверху (опціонально):"}
-                      </label>
-                      <input 
-                        type="text"
-                        value={ubicacionPlantaNumero}
-                        onChange={e => setUbicacionPlantaNumero(e.target.value)}
-                        placeholder="Ej: 3, Bajo, Atico..."
-                        className="survey-input"
-                        style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.88rem" }}
-                      />
-                    </div>
-
-                    {ubicacionOption === "Otros" && (
-                      <div style={{ borderTop: "1px solid var(--border-color, rgba(255, 255, 255, 0.06))", paddingTop: "12px", marginTop: "4px" }}>
-                        <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "8px", fontWeight: 600 }}>{t.q1WriteOther}</label>
+                    {/* Si selecciona 'Otros', mostrar cuadro de texto libre editable */}
+                    {ubicacionOption.toLowerCase().includes("otro") ? (
+                      <div>
+                        <label style={{ display: "block", fontSize: "0.82rem", color: "#64748b", marginBottom: "8px", fontWeight: 700 }}>
+                          {lang === "es" ? "Especifica la ubicación de la CTO (texto libre):" : "Вкажіть розташування CTO (довільний текст):"}
+                        </label>
                         <input 
                           type="text"
                           value={ubicacionOtros}
                           onChange={e => setUbicacionOtros(e.target.value)}
-                          placeholder="Especifica la ubicación..."
+                          placeholder={lang === "es" ? "Ej: Fachada, Garaje comunitario, Azotea..." : "Напр: Фасад, Гараж..."}
                           className="survey-input"
                           style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.9rem" }}
                         />
                       </div>
+                    ) : (
+                      <>
+                        <div>
+                          <label style={{ display: "block", fontSize: "0.82rem", color: "#64748b", marginBottom: "8px", fontWeight: 700 }}>
+                            {lang === "es" ? "Tipo de instalación en planta (opcional):" : "Тип встановлення на поверсі (опціонально):"}
+                          </label>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                            {[
+                              { es: "de metal, grande", uk: "металевий, великий" },
+                              { es: "de madera", uk: "дерев'яний" },
+                              { es: "en vertical", uk: "вертикальний" },
+                              { es: "Sin especificar", uk: "Без уточнення" }
+                            ].map((tOpt, idx) => {
+                              const isSubSelected = ubicacionPlantaTipo === tOpt.es;
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => setUbicacionPlantaTipo(tOpt.es)}
+                                  style={{
+                                    padding: "10px", borderRadius: "10px", 
+                                    border: isSubSelected ? "2px solid var(--primary-color, #3b82f6)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                                    background: isSubSelected ? "var(--primary-color, #f97316)" : "var(--card-bg, #1e293b)",
+                                    color: isSubSelected ? "#ffffff" : "var(--text-color, #f8fafc)",
+                                    cursor: "pointer", fontSize: "0.8rem", fontWeight: 600
+                                  }}
+                                >
+                                  {lang === "es" ? tOpt.es : tOpt.uk}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", fontSize: "0.82rem", color: "#64748b", marginBottom: "6px", fontWeight: 700 }}>
+                            {lang === "es" ? "Indica el número de la planta (opcional):" : "Вкажіть номер поверху (опціонально):"}
+                          </label>
+                          <input 
+                            type="text"
+                            value={ubicacionPlantaNumero}
+                            onChange={e => setUbicacionPlantaNumero(e.target.value)}
+                            placeholder="Ej: 3, Bajo, Atico..."
+                            className="survey-input"
+                            style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.88rem" }}
+                          />
+                        </div>
+                      </>
                     )}
 
                   </div>
@@ -998,8 +1048,9 @@ function FormGuideContent() {
                     onClick={() => {
                       setTieneDanos(false);
                       setDanosChecked({
-                        tapa: false, rotos: false, doblados: false, cerrar: false, sucia: false, enfrentadores: false, splitterRoto: false
+                        tapa: false, rotos: false, doblados: false, cerrar: false, sucia: false, enfrentadores: false, splitterRoto: false, otro: false
                       });
+                      setDanosOtroTexto("");
                       setCurrentStep(3);
                     }}
                     style={{
@@ -1020,15 +1071,37 @@ function FormGuideContent() {
                     <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{t.danosLabel}</span>
                     
                     {(Object.keys(danosChecked) as DamageKey[]).map((key) => (
-                      <label key={key} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", fontSize: "0.88rem", padding: "4px 0" }}>
-                        <input 
-                          type="checkbox"
-                          checked={danosChecked[key]}
-                          onChange={e => setDanosChecked({ ...danosChecked, [key]: e.target.checked })}
-                          style={{ width: "18px", height: "18px", accentColor: "#ef4444" }}
-                        />
-                        <span style={{ color: "var(--text-color, #e2e8f0)" }}>{t.danosOptions[key]}</span>
-                      </label>
+                      <div key={key}>
+                        <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", fontSize: "0.88rem", padding: "4px 0" }}>
+                          <input 
+                            type="checkbox"
+                            checked={danosChecked[key]}
+                            onChange={e => setDanosChecked({ ...danosChecked, [key]: e.target.checked })}
+                            style={{ width: "18px", height: "18px", accentColor: "#ef4444" }}
+                          />
+                          <span style={{ color: "var(--text-color, #e2e8f0)" }}>{t.danosOptions[key]}</span>
+                        </label>
+                        {key === "otro" && danosChecked.otro && (
+                          <div style={{ marginTop: "6px", marginLeft: "30px" }}>
+                            <input
+                              type="text"
+                              value={danosOtroTexto}
+                              onChange={e => setDanosOtroTexto(e.target.value)}
+                              placeholder={lang === "es" ? "Especifica el daño..." : "Вкажіть пошкодження..."}
+                              className="survey-input"
+                              style={{
+                                width: "100%",
+                                padding: "8px 12px",
+                                borderRadius: "8px",
+                                background: "var(--bg-color, #0f172a)",
+                                border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                                color: "var(--text-color, white)",
+                                fontSize: "0.85rem"
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}
@@ -1149,6 +1222,7 @@ function FormGuideContent() {
                           pattern="[0-9]*\.?[0-9]*"
                           value={s.signal}
                           onChange={e => updateSplitterSignal(idx, e.target.value)}
+                          onBlur={() => formatSplitterSignalOnBlur(idx)}
                           placeholder="22.15"
                           className="survey-input"
                           style={{ width: "100%", padding: "10px 12px 10px 24px", borderRadius: "10px", background: "var(--card-bg, #1e293b)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", color: "var(--text-color, white)", fontSize: "0.9rem" }}
@@ -1411,9 +1485,8 @@ function FormGuideContent() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10" />
-                          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
                         </svg>
                         <span style={{ fontWeight: 800, fontSize: "0.9rem", color: "var(--text-color, #f8fafc)" }}>
                           Detección Automática de Área
@@ -1423,12 +1496,6 @@ function FormGuideContent() {
                         v1.9.5
                       </span>
                     </div>
-
-                    <p style={{ fontSize: "0.78rem", color: "#94a3b8", margin: "0 0 12px 0", lineHeight: "1.35" }}>
-                      {lang === "es" 
-                        ? "Calcula la calle más cercana y casas unifamiliares en un radio de hasta 100m en ambas direcciones (aceras par/impar, excluyendo edificios)."
-                        : "Визначає найближчу вулицю та будинки в радіусі до 100м в обох напрямках (без багатоповерхівок)."}
-                    </p>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                       <button
@@ -1484,7 +1551,7 @@ function FormGuideContent() {
                           rows={3}
                           value={influenciaAreaAuto}
                           onChange={e => setInfluenciaAreaAuto(e.target.value)}
-                          placeholder="Ej: Area de influencia : Calle Mayor 1, 3, 5 (Impares) y 2, 4, 6 (Pares)"
+                          placeholder="Area de influencia : Calle [Street Name] [numbers]"
                           className="survey-input"
                           style={{
                             width: "100%",

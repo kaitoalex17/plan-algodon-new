@@ -124,6 +124,24 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       return copy;
     });
   };
+
+  const handleFormatDrawerSplitterOnBlur = (index: number) => {
+    setDrawerSplitters(prev => {
+      const copy = [...prev];
+      const raw = copy[index]?.signal?.trim();
+      if (!raw) return prev;
+      if (raw.toLowerCase() === "lo") {
+        copy[index] = { ...copy[index], signal: "LO" };
+        return copy;
+      }
+      const num = parseFloat(raw);
+      if (!isNaN(num)) {
+        copy[index] = { ...copy[index], signal: num.toFixed(2) };
+        return copy;
+      }
+      return prev;
+    });
+  };
   
   const [loading, setLoading] = useState(false);
   const [copiedCtoNum, setCopiedCtoNum] = useState(false);
@@ -1864,6 +1882,7 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
                               className="input-field" 
                               value={s.signal} 
                               onChange={e => handleUpdateDrawerSplitter(sIdx, e.target.value)}
+                              onBlur={() => handleFormatDrawerSplitterOnBlur(sIdx)}
                               placeholder="19.50"
                               style={{ padding: "6px 10px 6px 22px", minHeight: "36px", fontSize: "0.85rem", background: "var(--bg-color)", color: "var(--text-color)", border: "1.5px solid var(--border-color)", width: "100%" }}
                             />
