@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -35,6 +35,7 @@ function FormGuideContent() {
   const searchParams = useSearchParams();
   const ctoId = searchParams.get("ctoId");
   const { data: session, status: authStatus } = useSession();
+  const loadedCtoIdRef = useRef<string | null>(null);
 
   // Config & Metadata
   const [config, setConfig] = useState<any>(null);
@@ -127,104 +128,109 @@ function FormGuideContent() {
     };
   }, []);
 
-  // Load config & CTO data
+  // 1. Cargar configuración global de opciones una sola vez
+  useEffect(() => {
+    fetch("/api/admin/questionnaire-settings")
+      .then(res => res.json())
+      .then(data => setConfig(data))
+      .catch(err => console.error("Error loading config:", err));
+  }, []);
+
+  // 2. Control de autenticación
   useEffect(() => {
     if (authStatus === "unauthenticated") {
       router.push("/login");
-      return;
     }
-    
-    if (ctoId) {
-      fetch("/api/admin/questionnaire-settings")
-        .then(res => res.json())
-        .then(data => setConfig(data))
-        .catch(err => console.error("Error loading config:", err));
+  }, [authStatus, router]);
 
-      fetch(`/api/ctos/${ctoId}`)
-        .then(res => res.json())
-        .then(data => {
-          setCtoNum(data.num || "");
-          setCtoCoords({
-            lat: data.lat !== undefined && data.lat !== null ? parseFloat(data.lat) : null,
-            lng: data.lng !== undefined && data.lng !== null ? parseFloat(data.lng) : null
-          });
-          if (data.formDataJson) {
-            try {
-              const saved = JSON.parse(data.formDataJson);
-              setLang(saved.lang || "es");
-              
-              if (saved.ubicacionOption) {
-                setUbicacionOption(saved.ubicacionOption);
-                setUbicacionPlantaTipo(saved.ubicacionPlantaTipo || "");
-                setUbicacionPlantaNumero(saved.ubicacionPlantaNumero || "");
-                setUbicacionOtros(saved.ubicacionOtros || "");
-              } else if (saved.ubicacion) {
-                setUbicacionOption(saved.ubicacion);
-                const matches = config?.ubicacion?.options?.some((o: any) => o.es === saved.ubicacion);
-                if (!matches && saved.ubicacion) {
-                  setUbicacionOption("Otros");
-                  setUbicacionOtros(saved.ubicacion);
-                }
-              }
+  // 3. Cargar datos de la CTO una sola vez por ctoId (evita sobreescribir ediciones del usuario)
+  useEffect(() => {
+    if (!ctoId || loadedCtoIdRef.current === ctoId) return;
 
-              if (saved.danos && saved.danos.length > 0) {
-                setTieneDanos(true);
-                const updated = { ...danosChecked };
-                saved.danosKeys?.forEach((k: DamageKey) => {
-                  updated[k] = true;
-                });
-                setDanosChecked(updated);
-                setDanosOtroTexto(saved.danosOtroTexto || "");
-              } else if (saved.danos) {
-                setTieneDanos(false);
-              }
-
-              setRequiereLlaves(saved.requiereLlaves);
-              setLlavesNombre(saved.llavesNombre || "");
-              setLlavesTelefono(saved.llavesTelefono || "");
-              setLlavesNoDatos(saved.llavesNoDatos || false);
-
-              if (saved.splitters && saved.splitters.length > 0 && saved.splitters.some((s: any) => s.signal && s.signal.trim() !== "")) {
-                setSplitters(saved.splitters.slice(0, 6).map((s: any) => ({
-                  signal: (s.signal || "").replace(/^-+/, "").trim()
-                })));
-              } else if (saved.ocrSplitters && saved.ocrSplitters.length > 0) {
-                setSplitters(saved.ocrSplitters.filter((o: any) => o.divisor <= 6).map((s: any) => ({
-                  signal: (s.rawNumber || s.power || "").replace(/^-+/, "").trim()
-                })));
-              } else if (data.potenciaDbm) {
-                const rawP = String(data.potenciaDbm).replace(/^-+/, "").trim();
-                if (rawP) setSplitters([{ signal: rawP }]);
-              }
-
-              setRequiereAntala(saved.requiereAntala);
-              setInfluenciaPorterillo(saved.influenciaPorterillo || false);
-              setInfluenciaCalle(saved.influenciaCalle || false);
-              if (saved.callesList && saved.callesList.length > 0) {
-                setCallesList(saved.callesList);
-              } else if (saved.calleNombre) {
-                const numStr = saved.calleNumeros && saved.calleNumeros.length > 0 ? ` Nº ${saved.calleNumeros.join(", ")}` : "";
-                setCallesList([`${saved.calleTipo || "Calle"} ${saved.calleNombre}${numStr}`]);
-              } else {
-                setCallesList([""]);
-              }
-              setInfluenciaOtros(saved.influenciaOtros || false);
-              setInfluenciaOtrosTexto(saved.influenciaOtrosTexto || "");
-              if (saved.influenciaAreaAuto) {
-                setInfluenciaAreaAuto(saved.influenciaAreaAuto);
-              }
-              setHasSavedForm(true);
-            } catch (e) {
-              console.error("Error parsing saved data:", e);
+    fetch(`/api/ctos/${ctoId}`)
+      .then(res => res.json())
+      .then(data => {
+        loadedCtoIdRef.current = ctoId;
+        setCtoNum(data.num || "");
+        setCtoCoords({
+          lat: data.lat !== undefined && data.lat !== null ? parseFloat(data.lat) : null,
+          lng: data.lng !== undefined && data.lng !== null ? parseFloat(data.lng) : null
+        });
+        if (data.formDataJson) {
+          try {
+            const saved = JSON.parse(data.formDataJson);
+            setLang(saved.lang || "es");
+            
+            if (saved.ubicacionOption) {
+              setUbicacionOption(saved.ubicacionOption);
+              setUbicacionPlantaTipo(saved.ubicacionPlantaTipo || "");
+              setUbicacionPlantaNumero(saved.ubicacionPlantaNumero || "");
+              setUbicacionOtros(saved.ubicacionOtros || "");
+            } else if (saved.ubicacion) {
+              setUbicacionOption(saved.ubicacion);
+              setUbicacionOtros("");
             }
-          } else if (data.potenciaDbm) {
-            const rawP = String(data.potenciaDbm).replace(/^-+/, "").trim();
-            if (rawP) setSplitters([{ signal: rawP }]);
+
+            if (saved.danos && saved.danos.length > 0) {
+              setTieneDanos(true);
+              const updated: Record<DamageKey, boolean> = {
+                tapa: false, rotos: false, doblados: false, cerrar: false,
+                sucia: false, enfrentadores: false, splitterRoto: false, otro: false
+              };
+              saved.danosKeys?.forEach((k: DamageKey) => {
+                if (k in updated) updated[k] = true;
+              });
+              setDanosChecked(updated);
+              setDanosOtroTexto(saved.danosOtroTexto || "");
+            } else if (saved.danos !== undefined && saved.danos !== null) {
+              setTieneDanos(false);
+            }
+
+            setRequiereLlaves(saved.requiereLlaves ?? null);
+            setLlavesNombre(saved.llavesNombre || "");
+            setLlavesTelefono(saved.llavesTelefono || "");
+            setLlavesNoDatos(saved.llavesNoDatos || false);
+
+            if (saved.splitters && saved.splitters.length > 0 && saved.splitters.some((s: any) => s.signal && s.signal.trim() !== "")) {
+              setSplitters(saved.splitters.slice(0, 6).map((s: any) => ({
+                signal: (s.signal || "").replace(/^-+/, "").trim()
+              })));
+            } else if (saved.ocrSplitters && saved.ocrSplitters.length > 0) {
+              setSplitters(saved.ocrSplitters.filter((o: any) => o.divisor <= 6).map((s: any) => ({
+                signal: (s.rawNumber || s.power || "").replace(/^-+/, "").trim()
+              })));
+            } else if (data.potenciaDbm) {
+              const rawP = String(data.potenciaDbm).replace(/^-+/, "").trim();
+              if (rawP) setSplitters([{ signal: rawP }]);
+            }
+
+            setRequiereAntala(saved.requiereAntala ?? null);
+            setInfluenciaPorterillo(saved.influenciaPorterillo || false);
+            setInfluenciaCalle(saved.influenciaCalle || false);
+            if (saved.callesList && saved.callesList.length > 0) {
+              setCallesList(saved.callesList);
+            } else if (saved.calleNombre) {
+              const numStr = saved.calleNumeros && saved.calleNumeros.length > 0 ? ` Nº ${saved.calleNumeros.join(", ")}` : "";
+              setCallesList([`${saved.calleTipo || "Calle"} ${saved.calleNombre}${numStr}`]);
+            } else {
+              setCallesList([""]);
+            }
+            setInfluenciaOtros(saved.influenciaOtros || false);
+            setInfluenciaOtrosTexto(saved.influenciaOtrosTexto || "");
+            if (saved.influenciaAreaAuto) {
+              setInfluenciaAreaAuto(saved.influenciaAreaAuto);
+            }
+            setHasSavedForm(true);
+          } catch (e) {
+            console.error("Error parsing saved data:", e);
           }
-        })
-        .catch(err => console.error("Error loading CTO:", err));
-    }
-  }, [ctoId, authStatus, router, config?.ubicacion?.options]);
+        } else if (data.potenciaDbm) {
+          const rawP = String(data.potenciaDbm).replace(/^-+/, "").trim();
+          if (rawP) setSplitters([{ signal: rawP }]);
+        }
+      })
+      .catch(err => console.error("Error loading CTO:", err));
+  }, [ctoId]);
 
   if (authStatus === "loading" || !config) {
     return (
@@ -1686,11 +1692,34 @@ function FormGuideContent() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(5, 8, 16, 0.9)", zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
           <div className="glass-panel animate-step" style={{ width: "95%", maxWidth: "480px", padding: "2rem", background: "var(--card-bg, rgba(30, 41, 59, 0.5))", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", borderRadius: "24px", color: "var(--text-color, white)", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)", maxHeight: "90vh", overflowY: "auto" }}>
             
-            <h3 style={{ margin: "0 0 10px 0", fontSize: "1.25rem", fontWeight: 800, color: "#34d399", letterSpacing: "-0.02em" }}>
-              {saving ? "Guardando..." : "¡Cuestionario Guardado!"}
-            </h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+              <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "#34d399", letterSpacing: "-0.02em" }}>
+                {saving ? "Guardando..." : "¡Cuestionario Guardado!"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowResultModal(false)}
+                style={{
+                  background: "rgba(255, 255, 255, 0.08)",
+                  border: "1px solid var(--border-color, rgba(255, 255, 255, 0.1))",
+                  borderRadius: "50%",
+                  width: "32px",
+                  height: "32px",
+                  color: "var(--text-color, #94a3b8)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "0.85rem",
+                  fontWeight: 700
+                }}
+                title="Cerrar y volver a la guía"
+              >
+                ✕
+              </button>
+            </div>
             <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "0 0 20px 0", lineHeight: "1.5" }}>
-              El cuestionario ha sido registrado en la CTO {ctoNum}.
+              El cuestionario ha sido registrado en la CTO {ctoNum}. Copia los bloques necesarios antes de cerrar:
             </p>
 
             {/* Código CTO */}
@@ -1831,6 +1860,15 @@ function FormGuideContent() {
 
             <div style={{ display: "flex", gap: "10px", borderTop: "1px solid var(--border-color)", paddingTop: "15px", marginTop: "15px" }}>
               <button
+                type="button"
+                onClick={() => setShowResultModal(false)}
+                className="btn"
+                style={{ flex: 1, background: "rgba(255, 255, 255, 0.06)", color: "var(--text-color, white)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", justifyContent: "center", fontWeight: 700, borderRadius: "12px", minHeight: "38px", fontSize: "0.82rem" }}
+              >
+                Modificar Respuestas
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setShowResultModal(false);
                   if (typeof window !== "undefined" && window.parent && window.parent !== window) {
@@ -1839,8 +1877,8 @@ function FormGuideContent() {
                     window.close();
                   }
                 }}
-                className="btn"
-                style={{ width: "100%", background: "rgba(255, 255, 255, 0.06)", color: "var(--text-color, white)", border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", justifyContent: "center", fontWeight: 700, borderRadius: "12px", minHeight: "38px" }}
+                className="btn btn-primary"
+                style={{ flex: 1, justifyContent: "center", fontWeight: 700, borderRadius: "12px", minHeight: "38px", fontSize: "0.82rem", background: "var(--primary-color)" }}
               >
                 Cerrar Guía
               </button>

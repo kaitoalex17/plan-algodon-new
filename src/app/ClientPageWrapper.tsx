@@ -402,7 +402,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
 
     // Registrar Service Worker para soporte PWA (limpiando versiones previas corruptas)
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js")
+      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
         .then((reg) => {
           reg.update();
           console.log("Service Worker registrado y actualizado:", reg.scope);

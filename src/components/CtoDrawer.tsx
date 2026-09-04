@@ -336,7 +336,8 @@ export default function CtoDrawer({ cto, onClose, onUpdate }: CtoDrawerProps) {
       if (event.data.type === "CLOSE_FORM_GUIDE") {
         setShowFormGuideModal(false);
       } else if (event.data.type === "FORM_GUIDE_SAVED") {
-        setShowFormGuideModal(false);
+        // Actualizar datos de la CTO en el drawer en segundo plano sin cerrar el modal
+        // para que el usuario pueda ver y copiar el resumen con calma
         fetchCtoDetails();
       }
     };

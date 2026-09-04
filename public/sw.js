@@ -1,4 +1,4 @@
-const CACHE_NAME = "algodon-pwa-v3";
+const CACHE_NAME = "algodon-pwa-v4";
 const OFFLINE_URLS = [
   "/",
   "/photo-guide",
@@ -53,8 +53,10 @@ self.addEventListener("fetch", (event) => {
         if (cachedResponse) return cachedResponse;
         return fetch(request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone)).catch(() => {});
+            try {
+              const responseClone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone)).catch(() => {});
+            } catch (e) {}
           }
           return networkResponse;
         }).catch(() => cachedResponse);
@@ -70,9 +72,9 @@ self.addEventListener("fetch", (event) => {
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             try {
-              // Clonar de forma segura antes de devolver la respuesta a la navegación
+              // Clonar de forma segura sincrónicamente antes de que el cuerpo sea consumido
               const cloneForRequest = networkResponse.clone();
-              const cloneForPath = url.search ? cloneForRequest.clone() : null;
+              const cloneForPath = url.search ? networkResponse.clone() : null;
               caches.open(CACHE_NAME).then((cache) => {
                 cache.put(request, cloneForRequest).catch(() => {});
                 if (cloneForPath) {
