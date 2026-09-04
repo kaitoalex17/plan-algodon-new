@@ -279,22 +279,29 @@ function FormGuideContent() {
     setCallesList(updated);
   };
 
-  // Característica 1.9.5: Consultar área de influencia con IA y georreferenciación
+  // Consultar área de influencia con IA y georreferenciación
   const handleFetchInfluenceArea = async () => {
-    if (!ctoId) return;
-    if (ctoCoords.lat === null || ctoCoords.lng === null) {
+    const lat = ctoCoords.lat !== null && !isNaN(Number(ctoCoords.lat)) ? Number(ctoCoords.lat) : null;
+    const lng = ctoCoords.lng !== null && !isNaN(Number(ctoCoords.lng)) ? Number(ctoCoords.lng) : null;
+
+    if (!ctoId && (lat === null || lng === null)) {
+      alert("No se ha seleccionado una CTO o no dispone de coordenadas GPS válidas.");
+      return;
+    }
+    if (lat === null || lng === null) {
       alert("Esta CTO no tiene coordenadas GPS válidas. Asigna las coordenadas en el mapa o ficha antes de buscar el área de influencia.");
       return;
     }
 
     setLoadingInfluenceArea(true);
     try {
-      const res = await fetch(`/api/ctos/${ctoId}/influence-area`, {
+      const endpoint = ctoId ? `/api/ctos/${ctoId}/influence-area` : `/api/ctos/lookup/influence-area`;
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          lat: ctoCoords.lat,
-          lng: ctoCoords.lng
+          lat: lat,
+          lng: lng
         })
       });
 
@@ -474,8 +481,15 @@ function FormGuideContent() {
       influenciaParts.push(`Otros: ${influenciaOtrosTexto.trim()}`);
     }
     if (influenciaParts.length > 0) {
-      part3Lines.push(`- ${influenciaTitle}:`);
-      influenciaParts.forEach(ip => part3Lines.push(`  * ${ip}`));
+      if (influenciaParts.length === 1 && /^area de influencia\s*:/i.test(influenciaParts[0])) {
+        part3Lines.push(influenciaParts[0]);
+      } else {
+        part3Lines.push(`- ${influenciaTitle}:`);
+        influenciaParts.forEach(ip => {
+          const cleanIp = ip.replace(/^area de influencia\s*:\s*/i, "");
+          part3Lines.push(`  * ${cleanIp}`);
+        });
+      }
     }
 
     const signalComments: string[] = [];
@@ -713,6 +727,19 @@ function FormGuideContent() {
 
   // Navigate forward
   const nextStep = () => {
+    if (currentStep === 4) {
+      // Formatear automáticamente cualquier potencia a dos decimales xx.xx
+      const updated = splitters.map(s => {
+        const raw = s.signal.trim().replace(/^-+/, "").replace(",", ".");
+        if (!raw || raw.toLowerCase() === "lo") return s;
+        const num = parseFloat(raw);
+        if (!isNaN(num)) {
+          return { ...s, signal: num.toFixed(2) };
+        }
+        return s;
+      });
+      setSplitters(updated);
+    }
     if (currentStep < 6) setCurrentStep(currentStep + 1);
   };
 
@@ -729,8 +756,9 @@ function FormGuideContent() {
     } else if (currentStep === 2) {
       setTieneDanos(null);
       setDanosChecked({
-        tapa: false, rotos: false, doblados: false, cerrar: false, sucia: false, enfrentadores: false, splitterRoto: false
+        tapa: false, rotos: false, doblados: false, cerrar: false, sucia: false, enfrentadores: false, splitterRoto: false, otro: false
       });
+      setDanosOtroTexto("");
     } else if (currentStep === 3) {
       setRequiereLlaves(null);
       setLlavesNombre("");
@@ -1483,7 +1511,7 @@ function FormGuideContent() {
                       boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)"
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="20 6 9 17 4 12" />
@@ -1492,9 +1520,6 @@ function FormGuideContent() {
                           Detección Automática de Área
                         </span>
                       </div>
-                      <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 8px", borderRadius: "6px", background: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", border: "1px solid rgba(56, 189, 248, 0.3)" }}>
-                        v1.9.5
-                      </span>
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>

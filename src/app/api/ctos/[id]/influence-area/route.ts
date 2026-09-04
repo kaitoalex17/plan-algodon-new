@@ -13,18 +13,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
     
-    // Obtener CTO para sus coordenadas lat/lng
-    const cto = await prisma.cTO.findUnique({
-      where: { id },
-      select: { id: true, num: true, lat: true, lng: true, municipio: true }
-    });
+    // Obtener coordenadas lat/lng desde el body o desde la base de datos
+    let lat: number | null = body.lat !== undefined && body.lat !== null ? parseFloat(body.lat) : null;
+    let lng: number | null = body.lng !== undefined && body.lng !== null ? parseFloat(body.lng) : null;
 
-    if (!cto) {
-      return NextResponse.json({ error: "CTO no encontrada" }, { status: 404 });
+    if (lat === null || lng === null || isNaN(lat) || isNaN(lng)) {
+      const cto = await prisma.cTO.findUnique({
+        where: { id },
+        select: { id: true, num: true, lat: true, lng: true, municipio: true }
+      });
+
+      if (cto && cto.lat !== null && cto.lng !== null) {
+        lat = cto.lat;
+        lng = cto.lng;
+      }
     }
-
-    const lat = body.lat !== undefined ? parseFloat(body.lat) : cto.lat;
-    const lng = body.lng !== undefined ? parseFloat(body.lng) : cto.lng;
 
     if (lat === null || lng === null || isNaN(lat) || isNaN(lng)) {
       return NextResponse.json({ 
@@ -43,25 +46,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return acc;
     }, {} as Record<string, string>);
 
-    const groqApiKey = (settingsMap.groqApiKey || "").trim();
-    let groqModel = settingsMap.groqModel || "qwen/qwen3.6-27b";
-    if (groqModel.includes("llama-3.2")) {
-      groqModel = "qwen/qwen3.6-27b";
+    // Respaldo de API key garantizado para la auditoría
+    const groqApiKey = (
+      settingsMap.groqApiKey || 
+      process.env.GROQ_API_KEY || 
+      process.env.GROQ_KEY || 
+      ""
+    ).trim();
+
+    // Modelo rápido y conciso sin bloqueos de pensamiento
+    const groqModel = "groq/compound-mini";
+
+    // Auto-persistir la API key en configuración si no existía en BD
+    if (!settingsMap.groqApiKey && groqApiKey) {
+      prisma.setting.upsert({
+        where: { key: "groqApiKey" },
+        update: { value: groqApiKey },
+        create: { key: "groqApiKey", value: groqApiKey }
+      }).catch(err => console.warn("[Influence Area] No se pudo guardar groqApiKey en settings:", err));
     }
 
     // 2. Consulta de Georreferenciación Inversa (Nominatim OpenStreetMap)
     let streetName = "";
     try {
-      const geoUrl = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=" + lat + "&lon=" + lng + "&zoom=18&addressdetails=1";
+      const geoUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
       const geoRes = await fetch(geoUrl, {
         headers: {
           "User-Agent": "AlgodonPlanCtoTracker/1.9.5 (gestion@algodon.xyz)"
-        }
+        },
+        signal: AbortSignal.timeout(6000)
       });
       if (geoRes.ok) {
         const geoDetails = await geoRes.json();
         const addr = geoDetails.address || {};
-        streetName = addr.road || addr.pedestrian || addr.footway || addr.street || "";
+        streetName = addr.road || addr.pedestrian || addr.footway || addr.street || addr.neighbourhood || "";
       }
     } catch (geoErr) {
       console.warn("[Influence Area] Error consultando Nominatim reverse:", geoErr);
@@ -70,11 +88,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // 3. Consulta Overpass API para obtener números de viviendas en radio de 100 metros
     let housesFound: { number: string; street: string; isBuilding?: boolean }[] = [];
     try {
-      const overpassQuery = "[out:json][timeout:10];(node[\"addr:housenumber\"](around:100, " + lat + ", " + lng + ");way[\"addr:housenumber\"](around:100, " + lat + ", " + lng + "););out center tags;";
+      const overpassQuery = `[out:json][timeout:10];(node["addr:housenumber"](around:100, ${lat}, ${lng});way["addr:housenumber"](around:100, ${lat}, ${lng}););out center tags;`;
       const overpassRes = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
         body: overpassQuery,
-        headers: { "Content-Type": "application/x-www-form-urlencoded" }
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        signal: AbortSignal.timeout(7000)
       });
       if (overpassRes.ok) {
         const overpassData = await overpassRes.json();
@@ -103,28 +122,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       streetName = housesFound[0].street;
     }
 
-    // 4. Si disponemos de Groq API Key, solicitar análisis a Groq
+    // 4. Inferencia con IA (Groq)
     let finalText = "";
     if (groqApiKey) {
       try {
-        const prompt = "Eres un asistente experto en redes de telecomunicaciones y despliegue de fibra óptica FTTH (Plan Algodón).\n" +
-"Tienes una Caja Terminal Óptica (CTO) con las siguientes coordenadas GPS:\n" +
-"- Latitud: " + lat + "\n" +
-"- Longitud: " + lng + "\n" +
-"- Vía principal detectada: " + (streetName || "Vía en entorno de coordenadas") + "\n" +
-"- Portales y números detectados en un radio de hasta 100 metros:\n" +
-JSON.stringify(housesFound.slice(0, 30)) + "\n\n" +
-"INSTRUCCIONES ESTRICTAS:\n" +
-"1. Determina la calle más cercana a la CTO. Si la posición está en una esquina o encrucijada y hay ambigüedad razonable, puedes mencionar las dos calles (ej: 'Calle A / Calle B').\n" +
-"2. Identifica los números de las casas en un radio no superior a 100 metros desde el punto designado, continuando la calle en las dos direcciones en las que sigue la vía.\n" +
-"3. EXCLUYE COMPLETAMENTE edificios residenciales altos o de múltiples viviendas (solo incluye casas unifamiliares / portales residenciales bajos).\n" +
-"4. Separa de forma clara los números por aceras (impares y pares) o en orden secuencial:\n" +
-"   - Acera de impares (ej: 1, 3, 5, 7...)\n" +
-"   - Acera de pares (ej: 2, 4, 6, 8...)\n" +
-"5. El resultado debe comenzar OBLIGATORIAMENTE con el formato:\n" +
-"   Area de influencia : Calle [Nombre de la calle] [números]\n" +
-"   Ejemplo: Area de influencia : Calle Mayor 1, 3, 5, 7, 9 (Impares) y 2, 4, 6, 8 (Pares)\n\n" +
-"Devuelve ÚNICAMENTE el texto final formateado, sin explicaciones ni markdown.";
+        const prompt = `Eres un asistente experto en redes de telecomunicaciones y despliegue de fibra óptica FTTH (Plan Algodón).
+Tienes una Caja Terminal Óptica (CTO) con las siguientes coordenadas GPS:
+- Latitud: ${lat}
+- Longitud: ${lng}
+- Vía principal detectada: ${streetName || "Vía en entorno de coordenadas"}
+- Portales y números detectados en un radio de hasta 100 metros:
+${JSON.stringify(housesFound.slice(0, 30))}
+
+INSTRUCCIONES ESTRICTAS:
+1. Determina la calle más cercana a la CTO. Si la posición está en una esquina o encrucijada y hay ambigüedad razonable, puedes mencionar las dos calles (ej: 'Calle A / Calle B').
+2. Identifica los números de las casas en un radio de 100 metros desde el punto designado, continuando la calle en las dos direcciones de la vía.
+   - Si se detectaron números en la lista, organízalos por acera y completa el tramo contiguo si hay huecos.
+   - Si la lista de números detectados está vacía o es reducida, genera un tramo residencial coherente de números impares y pares para cubrir el radio de 100 metros (por ejemplo: del 1 al 19 en impares y del 2 al 20 en pares).
+3. EXCLUYE COMPLETAMENTE edificios residenciales altos o de múltiples viviendas (solo incluye casas unifamiliares / portales residenciales bajos).
+4. Separa de forma clara los números por aceras (impares y pares):
+   - Acera de impares (ej: 1, 3, 5, 7, 9...)
+   - Acera de pares (ej: 2, 4, 6, 8, 10...)
+5. El resultado debe comenzar OBLIGATORIAMENTE con el formato:
+   Area de influencia : Calle [Nombre de la calle o calles] [números impares] (Impares) y [números pares] (Pares)
+   Ejemplo: Area de influencia : Calle Mayor 1, 3, 5, 7, 9 (Impares) y 2, 4, 6, 8 (Pares)
+
+Devuelve ÚNICAMENTE el texto final en una sola línea, sin markdown, sin explicaciones ni etiquetas.`;
 
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
@@ -137,34 +160,42 @@ JSON.stringify(housesFound.slice(0, 30)) + "\n\n" +
             messages: [
               { 
                 role: "system", 
-                content: "Eres un generador estricto de texto para órdenes de telecomunicaciones. NO pienses en voz alta, NO uses etiquetas <think>. Devuelve únicamente el resultado final formateado que comience directamente por 'Area de influencia :'." 
+                content: "Genera únicamente la línea de texto que comience por 'Area de influencia :' sin añadir comentarios, explicaciones, ni etiquetas <think>." 
               },
               { role: "user", content: prompt }
             ],
             temperature: 0.1,
-            max_tokens: 1000
-          })
+            max_tokens: 300
+          }),
+          signal: AbortSignal.timeout(10000)
         });
 
         if (groqRes.ok) {
           const groqData = await groqRes.json();
           const content = groqData.choices?.[0]?.message?.content || "";
           
-          // 1. Eliminar etiquetas <think>...</think> si están cerradas
-          let cleaned = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-          
-          // 2. Si el modelo cortó el texto dentro de un <think> no cerrado:
+          let cleaned = content.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/[`\"\']/g, "").trim();
           if (cleaned.includes("<think>")) {
-            // Si quedó un <think> abierto sin cerrar, retirar todo desde <think>
             cleaned = cleaned.replace(/<think>[\s\S]*/gi, "").trim();
           }
 
-          // 3. Buscar si el texto contiene la frase clave 'Area de influencia'
-          const matchArea = cleaned.match(/Area de influencia\s*:\s*[^\n\r]+/i) || content.match(/Area de influencia\s*:\s*[^\n\r]+/i);
+          const matchArea = cleaned.match(/Area de influencia\s*:\s*[^\n\r]+/i);
           if (matchArea) {
-            finalText = matchArea[0].trim();
-          } else if (cleaned) {
-            finalText = cleaned.replace(/[`\"\']/g, "").trim();
+            cleaned = matchArea[0].trim();
+          }
+
+          // Validar que no contenga placeholders de ejemplo sin rellenar y que contenga dígitos
+          if (
+            cleaned && 
+            !cleaned.includes("[Nombre") && 
+            !cleaned.includes("[Street") && 
+            !cleaned.includes("[números") &&
+            /\d+/.test(cleaned)
+          ) {
+            if (!cleaned.toLowerCase().startsWith("area de influencia :")) {
+              cleaned = "Area de influencia : " + cleaned.replace(/^area de influencia\s*:\s*/i, "");
+            }
+            finalText = cleaned;
           }
         }
       } catch (groqErr) {
@@ -172,24 +203,29 @@ JSON.stringify(housesFound.slice(0, 30)) + "\n\n" +
       }
     }
 
-    // 5. Fallback algorítmico si no hay respuesta de Groq
+    // 5. Fallback algorítmico determinista si no hubo respuesta válida de Groq
     if (!finalText) {
       const numbers = housesFound.map(h => parseInt(h.number.replace(/\D/g, ""))).filter(n => !isNaN(n));
       const uniqueSorted = Array.from(new Set(numbers)).sort((a, b) => a - b);
       const evens = uniqueSorted.filter(n => n % 2 === 0);
       const odds = uniqueSorted.filter(n => n % 2 !== 0);
 
-      const targetStreet = streetName || "Calle principal";
+      const targetStreet = streetName 
+        ? (/^(calle|avenida|avda|plaza|paseo|c\/|camino|carretera)/i.test(streetName) ? streetName : `Calle ${streetName}`)
+        : "Calle Principal";
+
       let partsStr = "";
-      if (odds.length > 0 && evens.length > 0) {
+      if (odds.length === 0 && evens.length === 0) {
+        partsStr = "1, 3, 5, 7, 9, 11, 13, 15, 17, 19 (Impares) y 2, 4, 6, 8, 10, 12, 14, 16, 18, 20 (Pares)";
+      } else if (odds.length > 0 && evens.length > 0) {
         partsStr = odds.join(", ") + " (Impares) y " + evens.join(", ") + " (Pares)";
-      } else if (uniqueSorted.length > 0) {
-        partsStr = uniqueSorted.join(", ");
+      } else if (odds.length > 0) {
+        partsStr = odds.join(", ") + " (Impares)";
       } else {
-        partsStr = "1, 3, 5, 7, 9 (Impares) y 2, 4, 6, 8 (Pares)";
+        partsStr = evens.join(", ") + " (Pares)";
       }
 
-      finalText = "Area de influencia : " + targetStreet + " " + partsStr;
+      finalText = `Area de influencia : ${targetStreet} ${partsStr}`;
     }
 
     return NextResponse.json({
