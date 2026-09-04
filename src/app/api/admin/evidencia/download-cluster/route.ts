@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
       ? `Evidencias_${clusterParam}_CTOs.zip`
       : `Evidencias_Clusters_CTOs_${Date.now()}.zip`;
 
-    return new Response(zipBuffer, {
+    return new Response(new Uint8Array(zipBuffer), {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${filename}"`

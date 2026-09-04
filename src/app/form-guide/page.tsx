@@ -84,10 +84,11 @@ function FormGuideContent() {
   const [callesList, setCallesList] = useState<string[]>([""]);
   const [influenciaOtros, setInfluenciaOtros] = useState(false);
   const [influenciaOtrosTexto, setInfluenciaOtrosTexto] = useState("");
-  // Característica 1.9.5: Área de influencia automática con IA
+  // Área de influencia automática con IA
   const [ctoCoords, setCtoCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [influenciaAreaAuto, setInfluenciaAreaAuto] = useState("");
   const [loadingInfluenceArea, setLoadingInfluenceArea] = useState(false);
+  const [influenceSuccess, setInfluenceSuccess] = useState(false);
 
   // Result modal state
   const [generatedComment, setGeneratedComment] = useState("");
@@ -288,12 +289,9 @@ function FormGuideContent() {
       alert("No se ha seleccionado una CTO o no dispone de coordenadas GPS válidas.");
       return;
     }
-    if (lat === null || lng === null) {
-      alert("Esta CTO no tiene coordenadas GPS válidas. Asigna las coordenadas en el mapa o ficha antes de buscar el área de influencia.");
-      return;
-    }
 
     setLoadingInfluenceArea(true);
+    setInfluenceSuccess(false);
     try {
       const endpoint = ctoId ? `/api/ctos/${ctoId}/influence-area` : `/api/ctos/lookup/influence-area`;
       const res = await fetch(endpoint, {
@@ -308,6 +306,7 @@ function FormGuideContent() {
       const data = await res.json();
       if (res.ok && data.text) {
         setInfluenciaAreaAuto(data.text);
+        setInfluenceSuccess(true);
       } else {
         alert(data.error || "No se pudo obtener el área de influencia automáticamente.");
       }
@@ -390,7 +389,8 @@ function FormGuideContent() {
         cerrar: "No se puede cerrar",
         sucia: "Está sucia y/o llena de agua",
         enfrentadores: "Le faltan enfrentadores",
-        splitterRoto: "Tiene los divisores/splitter rotos"
+        splitterRoto: "Tiene los divisores/splitter rotos",
+        otro: "Otro daño"
       };
       (Object.keys(danosChecked) as DamageKey[]).forEach(k => {
         if (danosChecked[k]) {
@@ -1500,7 +1500,7 @@ function FormGuideContent() {
                     )}
                   </div>
 
-                  {/* CARACTERÍSTICA 1.9.5: Búsqueda Inteligente de Área de Influencia con IA */}
+                  {/* Búsqueda Inteligente de Área de Influencia con IA */}
                   <div 
                     style={{
                       borderRadius: "14px",
@@ -1567,6 +1567,26 @@ function FormGuideContent() {
                         )}
                       </button>
 
+                      {influenceSuccess && (
+                        <div style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "6px 12px",
+                          borderRadius: "8px",
+                          background: "rgba(16, 185, 129, 0.15)",
+                          border: "1px solid rgba(16, 185, 129, 0.3)",
+                          color: "#10b981",
+                          fontSize: "0.78rem",
+                          fontWeight: 700
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          <span>Área de influencia detectada y copiada al cuadro inferior</span>
+                        </div>
+                      )}
+
                       {/* Cuadro de texto totalmente editable para el resultado */}
                       <div>
                         <label style={{ display: "block", fontSize: "0.75rem", color: "#64748b", marginBottom: "4px", fontWeight: 700 }}>
@@ -1576,7 +1596,7 @@ function FormGuideContent() {
                           rows={3}
                           value={influenciaAreaAuto}
                           onChange={e => setInfluenciaAreaAuto(e.target.value)}
-                          placeholder="Area de influencia : Calle [Street Name] [numbers]"
+                          placeholder="Ej: Area de influencia : Calle Mayor 1, 3, 5 (Impares) y 2, 4, 6 (Pares)"
                           className="survey-input"
                           style={{
                             width: "100%",

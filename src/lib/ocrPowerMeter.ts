@@ -453,18 +453,20 @@ export async function processPowerMeterUploadOcr({
       return result;
     }
 
-    // 3. Generar comentario automático en la CTO
-    const commentText = `Potencia extraída automáticamente de la imagen de potencia para el divisor ${divisorIndex} : ${result.power} dBm`;
-    try {
-      await prisma.comment.create({
-        data: {
-          ctoId,
-          userId: userId || null,
-          text: commentText
-        }
-      });
-    } catch (commentErr) {
-      console.error("Error al crear comentario de OCR:", commentErr);
+    // 3. Generar comentario automático en la CTO si hay un usuario autenticado
+    if (userId) {
+      const commentText = `Potencia extraída automáticamente de la imagen de potencia para el divisor ${divisorIndex} : ${result.power} dBm`;
+      try {
+        await prisma.comment.create({
+          data: {
+            ctoId,
+            userId,
+            text: commentText
+          }
+        });
+      } catch (commentErr) {
+        console.error("Error al crear comentario de OCR:", commentErr);
+      }
     }
 
     // 4. Actualizar CTO: datos de splitters en formDataJson y potenciaDbm si es Divisor 1

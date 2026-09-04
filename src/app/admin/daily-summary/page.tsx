@@ -12,6 +12,7 @@ interface CtoReport {
   zona: string;
   status: string;
   subStatusName: string;
+  subStatusColor?: string;
   auditor: string;
   auditTime: string;
 }

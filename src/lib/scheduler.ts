@@ -15,7 +15,7 @@ if (!(fs as any).__helvetica_patched) {
         ? helveticaAfm
         : Buffer.from(helveticaAfm, "utf8");
     }
-    return originalReadFileSync.apply(this, arguments as any);
+    return (originalReadFileSync as any).apply(fs, arguments as any);
   } as any;
 
   const originalExistsSync = fs.existsSync;
@@ -23,7 +23,7 @@ if (!(fs as any).__helvetica_patched) {
     if (typeof path === "string" && path.includes("Helvetica.afm")) {
       return true;
     }
-    return originalExistsSync.apply(this, arguments as any);
+    return (originalExistsSync as any).apply(fs, arguments as any);
   } as any;
 }
 

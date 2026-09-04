@@ -12,6 +12,8 @@ type CtoDrawerProps = {
   cto: any;
   onClose: () => void;
   onUpdate: (updatedCto: any) => void;
+  users?: any[];
+  subStatuses?: any[];
 };
 
 const openDB = (): Promise<IDBDatabase> => {

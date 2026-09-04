@@ -7,6 +7,18 @@ export async function sendLiveTechLocation(action?: string): Promise<{ lat: numb
     return null;
   }
 
+  // Comprobar estado del permiso para no disparar alertas/bloqueos repetitivos en consola
+  if (navigator.permissions && navigator.permissions.query) {
+    try {
+      const permissionStatus = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+      if (permissionStatus.state === "denied") {
+        return null;
+      }
+    } catch {
+      // Ignorar si el navegador no soporta la consulta de permisos
+    }
+  }
+
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {

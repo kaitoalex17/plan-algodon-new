@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const geoUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
       const geoRes = await fetch(geoUrl, {
         headers: {
-          "User-Agent": "AlgodonPlanCtoTracker/1.9.5 (gestion@algodon.xyz)"
+          "User-Agent": "AlgodonPlanCtoTracker/2.0 (gestion@algodon.xyz)"
         },
         signal: AbortSignal.timeout(6000)
       });
@@ -143,9 +143,10 @@ INSTRUCCIONES ESTRICTAS:
 4. Separa de forma clara los números por aceras (impares y pares):
    - Acera de impares (ej: 1, 3, 5, 7, 9...)
    - Acera de pares (ej: 2, 4, 6, 8, 10...)
-5. El resultado debe comenzar OBLIGATORIAMENTE con el formato:
-   Area de influencia : Calle [Nombre de la calle o calles] [números impares] (Impares) y [números pares] (Pares)
-   Ejemplo: Area de influencia : Calle Mayor 1, 3, 5, 7, 9 (Impares) y 2, 4, 6, 8 (Pares)
+5. El resultado debe redactar los nombres y números REALES sin usar corchetes ni texto literal de plantilla.
+   Formato OBLIGATORIO:
+   Area de influencia : Calle <Nombre real> <números impares> (Impares) y <números pares> (Pares)
+   Ejemplo de salida válida: Area de influencia : Calle Mayor 1, 3, 5, 7, 9 (Impares) y 2, 4, 6, 8 (Pares)
 
 Devuelve ÚNICAMENTE el texto final en una sola línea, sin markdown, sin explicaciones ni etiquetas.`;
 
@@ -184,14 +185,12 @@ Devuelve ÚNICAMENTE el texto final en una sola línea, sin markdown, sin explic
             cleaned = matchArea[0].trim();
           }
 
-          // Validar que no contenga placeholders de ejemplo sin rellenar y que contenga dígitos
-          if (
-            cleaned && 
-            !cleaned.includes("[Nombre") && 
-            !cleaned.includes("[Street") && 
-            !cleaned.includes("[números") &&
-            /\d+/.test(cleaned)
-          ) {
+          // Validar que no contenga corchetes, placeholders de ejemplo sin rellenar y que contenga dígitos reales
+          const hasBrackets = cleaned.includes("[") || cleaned.includes("]");
+          const hasPlaceholderWords = /street|nombre|numbers|números/i.test(cleaned);
+          const hasDigits = /\d+/.test(cleaned);
+
+          if (cleaned && !hasBrackets && !hasPlaceholderWords && hasDigits) {
             if (!cleaned.toLowerCase().startsWith("area de influencia :")) {
               cleaned = "Area de influencia : " + cleaned.replace(/^area de influencia\s*:\s*/i, "");
             }

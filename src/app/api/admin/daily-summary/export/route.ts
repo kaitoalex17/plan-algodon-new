@@ -19,7 +19,7 @@ if (!(fs as any).__helvetica_patched) {
         ? helveticaAfm
         : Buffer.from(helveticaAfm, "utf8");
     }
-    return originalReadFileSync.apply(this, arguments as any);
+    return (originalReadFileSync as any).apply(fs, arguments as any);
   } as any;
 
   const originalExistsSync = fs.existsSync;
@@ -27,7 +27,7 @@ if (!(fs as any).__helvetica_patched) {
     if (typeof path === "string" && path.includes("Helvetica.afm")) {
       return true;
     }
-    return originalExistsSync.apply(this, arguments as any);
+    return (originalExistsSync as any).apply(fs, arguments as any);
   } as any;
 }
 
@@ -328,7 +328,7 @@ export async function GET(req: NextRequest) {
 
     if (type === "pdf") {
       const buffer = await buildPdfBuffer(data.ctos, data.date);
-      return new NextResponse(buffer, {
+      return new NextResponse(new Uint8Array(buffer), {
         status: 200,
         headers: {
           "Content-Type": "application/pdf",
@@ -337,7 +337,7 @@ export async function GET(req: NextRequest) {
       });
     } else {
       const buffer = buildExcelBuffer(data.ctos, data.date);
-      return new NextResponse(buffer, {
+      return new NextResponse(new Uint8Array(buffer), {
         status: 200,
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

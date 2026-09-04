@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       q: `'${folderId}' in parents and trashed=false`,
       fields: "files(name)",
     });
-    const existingDriveFiles = new Set(driveFilesRes.data.files?.map(f => f.name) || []);
+    const existingDriveFiles = new Set(driveFilesRes.data.files?.map((f: any) => f.name) || []);
 
     let uploadsCount = 0;
     let driveError = false;

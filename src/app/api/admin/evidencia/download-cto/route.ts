@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
 
     const safeNum = cleanCto;
     const zipPrefix = downloadType === "antala" ? "antala" : downloadType === "otros" ? "otras_fotos" : "evidencias";
-    const response = new NextResponse(zipBuffer, {
+    const response = new NextResponse(new Uint8Array(zipBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/zip",

@@ -651,22 +651,37 @@ export default function Map({
   // Solicitar ubicación al entrar a la app y guardarla
   useEffect(() => {
     if (typeof window !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-          setUserLocation(loc);
-          // Compartir ubicación al servidor para que otros técnicos lo vean
-          fetch("/api/tech-locations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy })
-          }).catch(() => {});
-        },
-        (err) => {
-          console.log("Permiso de GPS:", err.message);
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
+      const getInitialLocation = async () => {
+        if (navigator.permissions && navigator.permissions.query) {
+          try {
+            const permissionStatus = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+            if (permissionStatus.state === "denied") {
+              return;
+            }
+          } catch {
+            // Ignorar navegadores antiguos sin Permissions API
+          }
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+            setUserLocation(loc);
+            // Compartir ubicación al servidor para que otros técnicos lo vean
+            fetch("/api/tech-locations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy })
+            }).catch(() => {});
+          },
+          (err) => {
+            console.log("Permiso de GPS:", err.message);
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      };
+
+      getInitialLocation();
     }
   }, []);
 

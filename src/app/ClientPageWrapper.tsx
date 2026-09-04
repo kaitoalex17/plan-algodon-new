@@ -717,7 +717,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
   }, [filteredCtos]);
 
   return (
-    <div style={{ position: "fixed", inset: 0, width: "100%", height: "100%", height: "100dvh", maxHeight: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--bg-color)", overscrollBehavior: "none" }}>
+    <div style={{ position: "fixed", inset: 0, width: "100%", height: "100dvh", maxHeight: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--bg-color)", overscrollBehavior: "none" }}>
       
       {/* Notificación Flotante de Vista Casa (Sin emojis, solo SVG) */}
       {homeToast && (
@@ -1751,7 +1751,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                       alignItems: "center"
                     }}
                   >
-                    {renderCorrectoPatternPreview(pat.value, session?.user?.color || "#FF7900")}
+                    {renderCorrectoPatternPreview(pat.value, (session?.user as any)?.color || "#FF7900")}
                     <span style={{ fontSize: "0.55rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%" }}>
                       {pat.label}
                     </span>
@@ -1792,7 +1792,7 @@ export default function ClientPageWrapper({ initialCtos, initialMapState }: { in
                       alignItems: "center"
                     }}
                   >
-                    {renderFalloPatternPreview(pat.value, session?.user?.color || "#FF7900")}
+                    {renderFalloPatternPreview(pat.value, (session?.user as any)?.color || "#FF7900")}
                     <span style={{ fontSize: "0.55rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%" }}>
                       {pat.label}
                     </span>
