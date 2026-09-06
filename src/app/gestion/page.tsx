@@ -378,6 +378,59 @@ export default function GestionDashboard() {
               </p>
             </div>
           </Link>
+
+          {/* Card 5: Generador de Informes (PDF y Excel) */}
+          <Link href="/admin/reports" style={{ textDecoration: "none" }}>
+            <div style={{
+              background: "#1e293b",
+              border: "1px solid #334155",
+              borderRadius: "16px",
+              padding: "2rem",
+              cursor: "pointer",
+              transition: "transform 0.2s, background 0.2s, border-color 0.2s",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-4px)";
+              e.currentTarget.style.background = "#243249";
+              e.currentTarget.style.borderColor = "#10b981";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "none";
+              e.currentTarget.style.background = "#1e293b";
+              e.currentTarget.style.borderColor = "#334155";
+            }}
+            >
+              <div style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "10px",
+                background: "rgba(16, 185, 129, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#10b981"
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </svg>
+              </div>
+              <h3 style={{ margin: "0.25rem 0 0 0", fontSize: "1.2rem", fontWeight: 800, color: "white" }}>
+                Generador de Informes (PDF y Excel)
+              </h3>
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "#94a3b8", lineHeight: "1.4" }}>
+                Filtra por auditores, técnicos, subestados, fechas y exporta informes avanzados en PDF, Excel moderno (.xlsx) y Excel clásico (.xls).
+              </p>
+            </div>
+          </Link>
         </div>
 
         {/* Footer */}
